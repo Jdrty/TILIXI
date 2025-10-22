@@ -20,12 +20,18 @@ static uint8_t queue_head = 0;
 static uint8_t queue_tail = 0;  // if you're a reader trying to understand this, think of it as a snake
 
 // system to push next event into queue assuming queue has room
-void push_event(keyboard_event evt) {
-    uint8_t next = (queue_head+1) % queue_size;
-    if (next != queue_tail) { // not a full queue
-        event_queue[queue_head] = evt;
-        queue_head = next;
+static inline void push_event(const keyboard_event *evt) {
+    uint8_t next = (uint8_t) (queue_head+1);    // wrap around logic, don't want 8 bit integer being promoted to higher values unnecessarily
+    if (next == queue_size) {
+        next = 0;
     }
+
+    if (next == queue_tail) {   // full
+        return;
+    }
+
+    event_queue[queue_head] = *evt;
+    queue_head              = next;
 }
 
 keyboard_event get_next_event(void) {
@@ -50,7 +56,7 @@ void process(key_event evt) {
                     hotkeys[i].action
                 };
                 
-                push_event(ke);
+                push_event(&ke);
                 execute_action(hotkeys[i].action);
                 printf("[KEY] hotkey triggered! %s\n", ke.action);
                 fflush(stdout);  // immediately print
@@ -64,7 +70,7 @@ void process(key_event evt) {
         evt.modifiers,
         NULL
     };
-    push_event(ke); 
+    push_event(&ke); 
 }
 
 // how user registers a new hotkey

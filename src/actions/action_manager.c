@@ -14,7 +14,7 @@ void register_action(const char *name, action_handler handler) {
 void execute_action(const char *name) {
     for (uint8_t i = 0; i < action_count; i++) {
         if (strcmp(actions[i].name, name) == 0) {
-            actions[i].handler();   // call the app
+            actions[i].handler();   // assign the function pointer the action
             return;
         }
     }

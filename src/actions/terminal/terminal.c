@@ -10,6 +10,10 @@ void new_terminal(void) {
 }
 
 void close_terminal(void) {
+    if (window_count == 0) {
+        printf("[ERROR] No terminals to close\n");
+        return;
+    }
     window_count--;
     printf("[ACTION] Terminal closed count is %d\n", window_count);
-}
+}                                                                                          
