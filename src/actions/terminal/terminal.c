@@ -1,9 +1,8 @@
 #include "terminal.h"
 
-#define max_windows 8
-static terminal_state terminals[max_windows];
-static uint8_t active_terminal = 0;
-static uint8_t window_count = 0;
+terminal_state terminals[max_windows];
+uint8_t active_terminal = 0;
+uint8_t window_count = 0;
 
 void new_terminal(void) {
     if (window_count >= max_windows) {
