@@ -3,10 +3,6 @@
 #include <stdio.h>
 #include "terminal_cmd.h"
 
-// window count
-#define max_windows 8
-static uint8_t window_count = 0;
-
 // terminal char dimensions
 #define terminal_rows 24
 #define terminal_cols 80
@@ -20,9 +16,6 @@ typedef struct {
     uint8_t active;     // is terminal in use
     uint8_t input_pos;  // cursor position in input
 } terminal_state;
-
-static terminal_state terminals[max_windows];
-static uint8_t active_terminal = 0;     // which is in focus
 
 void new_terminal(void);
 void close_terminal(void);

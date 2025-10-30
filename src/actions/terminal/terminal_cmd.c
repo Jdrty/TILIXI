@@ -1,7 +1,7 @@
 #include "terminal_cmd.h"
 
 // cmds implimentations
-int change_directory(cmd_handler handler) {
+int change_directory(int argc, char **argv) {
     if (argc == 2) {    // once filesystem is implimented, check if the target directory exists
         // again, once implimented change current dir
         return 0;
@@ -21,5 +21,4 @@ void register_cmd(cmd_handler handler, const char *name, const char *help) {
 };
 
 void essential_cmds() {
-    register_cmd();
 }

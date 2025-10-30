@@ -45,7 +45,6 @@ keyboard_event get_next_event(void) {
 }
 
 void process(key_event evt) {
-    keyboard_event ke = { event_keypressed, evt.key, evt.modifiers, NULL };
     if (evt.modifiers) {
         for (uint8_t i = 0; i < hotkey_count; i++) {
             if (hotkeys[i].key == evt.key && hotkeys[i].modifiers == evt.modifiers) {
