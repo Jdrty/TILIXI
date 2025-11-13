@@ -1,6 +1,8 @@
 #pragma once
 #include <stdint.h>
-#include "../actions/action_manager.h"
+#include <string.h>
+#include <stdio.h>
+#include "action_manager.h"
 
 // long list of keys ill use
 typedef enum __attribute__((packed)) {

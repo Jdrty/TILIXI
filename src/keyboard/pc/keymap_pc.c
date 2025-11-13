@@ -1,4 +1,4 @@
-#include "keymap_pc.h"
+#include "../../../include/keymap_pc.h"
 
 key_code keymap_from_raw(int raw) {
     switch (raw) {

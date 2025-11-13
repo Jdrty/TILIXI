@@ -1,4 +1,4 @@
-#include "terminal.h"
+#include "../../../include/terminal.h"
 
 terminal_state terminals[max_windows];
 uint8_t active_terminal = 0;

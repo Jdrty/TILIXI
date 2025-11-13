@@ -2,7 +2,7 @@
 #include <stdint.h>
 #include <string.h>
 #include <stdio.h>
-#include "terminal/terminal.h"
+#include "terminal.h"
 
 typedef void (*action_handler)(void);    // function pointer type
 

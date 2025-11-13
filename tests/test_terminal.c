@@ -1,6 +1,6 @@
- #include <stdio.h>
+#include <stdio.h>
 #include <assert.h>
-#include "src/actions/terminal/terminal.h"
+#include "include/terminal.h"
 
 void setup_terminal(void) {
     window_count = 0;  // reset to known state

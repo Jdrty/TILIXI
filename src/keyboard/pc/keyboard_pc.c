@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <termios.h>
-#include "keyboard_pc.h"
+#include "../../../include/keyboard_pc.h"
 
 // modifier masks (matching keyboard_core.h)
 #define mod_ctrl  (1 << 1)

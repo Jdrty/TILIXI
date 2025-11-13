@@ -1,7 +1,5 @@
 // includes
-#include "keyboard_core.h"
-#include <string.h>
-#include <stdio.h>
+#include "../../include/keyboard_core.h"
 
 // hotkeys (:
 #define max_hotkeys 16  // you could have more hotkeys but were working with limited RAM

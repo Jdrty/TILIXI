@@ -1,6 +1,6 @@
 #include <stdio.h>
-#include "../src/keyboard/pc/keyboard_pc.h"
-#include "../src/actions/action_manager.h"
+#include "../include/keyboard_pc.h"
+#include "../include/action_manager.h"
 
 int main(void) {
     init_actions();
