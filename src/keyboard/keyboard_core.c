@@ -1,5 +1,5 @@
 // includes
-#include "../../include/keyboard_core.h"
+#include "keyboard_core.h"
 
 // hotkeys (:
 #define max_hotkeys 16  // you could have more hotkeys but were working with limited RAM
@@ -49,7 +49,7 @@ void process(key_event evt) {
                 keyboard_event ke = {event_hotkey,evt.key,evt.modifiers,hotkeys[i].action};
                 push_event(&ke);
                 execute_action(hotkeys[i].action);
-                printf("[KEY] hotkey triggered! %s\n", ke.action);
+                DEBUG_PRINT("[KEY] hotkey triggered! %s\n", ke.action);
                 fflush(stdout);
                 return;
             }

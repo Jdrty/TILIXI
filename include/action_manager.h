@@ -1,8 +1,8 @@
 #pragma once
 #include <stdint.h>
 #include <string.h>
-#include <stdio.h>
 #include "terminal.h"
+#include "debug_helper.h"
 
 typedef void (*action_handler)(void);    // function pointer type
 

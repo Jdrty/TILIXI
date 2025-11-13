@@ -2,12 +2,20 @@
 SRC_DIR := src
 TESTS_DIR := tests
 BUILD_DIR := build
-INCLUDE := -I.
+INCLUDE := -Iinclude $(shell find src -type d -exec printf -- "-I%s " {} \;)
 
 # compiler settings
 CC := gcc
 CFLAGS := -Wall -Wextra -std=c99
-DEBUG := -g -O0
+
+# debug
+ifeq ($(DEBUG),1)
+    DEBUG_FLAGS := -g -O0 -DDEBUG
+else
+    DEBUG_FLAGS := -O2
+endif
+
+CFLAGS := -Wall -Wextra -std=c99 $(DEBUG_FLAGS)
 
 # find all .c files recursively under src/
 SRC_FILES := $(shell find $(SRC_DIR) -name "*.c" -type f)
@@ -32,7 +40,7 @@ $(BUILD_DIR):
 
 # build
 $(PRODUCTION): $(BUILD_DIR) $(SRC_FILES)
-	$(CC) $(CFLAGS) $(DEBUG) $(INCLUDE) $(SRC_FILES) -o $@
+	$(CC) $(CFLAGS) $(INCLUDE) $(SRC_FILES) -o $@
 	@echo "(: built: $@"
 
 # test

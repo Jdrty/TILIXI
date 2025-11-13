@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <assert.h>
-#include "include/action_manager.h"
+#include "action_manager.h"
 
 // mock handler
 static int mock_handler_calls = 0;

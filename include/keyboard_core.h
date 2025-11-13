@@ -1,7 +1,7 @@
 #pragma once
 #include <stdint.h>
 #include <string.h>
-#include <stdio.h>
+#include <debug_helper.h>
 #include "action_manager.h"
 
 // long list of keys ill use

@@ -1,7 +1,4 @@
-#include <stdio.h>
-#include <unistd.h>
-#include <termios.h>
-#include "../../../include/keyboard_pc.h"
+#include "keyboard_pc.h"
 
 // modifier masks (matching keyboard_core.h)
 #define mod_ctrl  (1 << 1)
@@ -57,7 +54,7 @@ void sdlread(void) {
 
         evt.key = key_from_char(c);
 
-        printf("[DEBUG] Key pressed: key=%d, mods=%d\n", evt.key, evt.modifiers);
+        DEBUG_PRINT("[DEBUG] Key pressed: key=%d, mods=%d\n", evt.key, evt.modifiers);
         fflush(stdout);
 
         process(evt);

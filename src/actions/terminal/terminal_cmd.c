@@ -1,4 +1,4 @@
-#include "../../../include/terminal_cmd.h"
+#include "terminal_cmd.h"
 
 // cmds implimentations
 int change_directory(int argc, char **argv) {

@@ -1,7 +1,7 @@
 #pragma once
 #include <stdint.h>
-#include <stdio.h>
 #include "terminal_cmd.h"
+#include "debug_helper.h"
 
 // terminal char dimensions
 #define max_windows 8

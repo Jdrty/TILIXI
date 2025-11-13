@@ -1,6 +1,6 @@
 #include <stdio.h>
 #include <assert.h>
-#include "include/keyboard_core.h"
+#include "keyboard_core.h"
 
 void setup_keyboard(void) {
     // initialize keyboard state for tests
