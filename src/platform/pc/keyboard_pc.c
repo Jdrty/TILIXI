@@ -1,4 +1,8 @@
-#include "keyboard_pc.h"
+#include <stdio.h>
+#include <unistd.h>
+#include <termios.h>
+#include "platform/pc/keyboard_pc.h"
+#include "event_processor.h"
 
 // modifier masks (matching keyboard_core.h)
 #define mod_ctrl  (1 << 1)

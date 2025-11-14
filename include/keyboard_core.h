@@ -1,8 +1,5 @@
 #pragma once
 #include <stdint.h>
-#include <string.h>
-#include <debug_helper.h>
-#include "action_manager.h"
 
 // long list of keys ill use
 typedef enum __attribute__((packed)) {
@@ -76,23 +73,3 @@ typedef struct __attribute__((packed)) {
 #define mod_shift (1 << 0)
 #define mod_ctrl  (1 << 1)
 #define mod_super (1 << 2)
-
-// what kind of events can exist
-typedef enum __attribute__ ((packed)) {
-    event_none,
-    event_keypressed,
-    event_hotkey
-} event_type;
-
-// define event characteristics
-typedef struct {
-    event_type event;
-    key_code key;
-    uint8_t modifiers;
-    const char *action;
-} keyboard_event;
-
-// functions
-void process(key_event evt);
-keyboard_event get_next_event(void);
-void register_key(uint8_t modifiers, key_code key, const char *action);

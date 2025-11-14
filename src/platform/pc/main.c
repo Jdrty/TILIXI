@@ -1,6 +1,8 @@
 #include <stdio.h>
-#include "keyboard_pc.h"
+#include "platform/pc/keyboard_pc.h"
 #include "action_manager.h"
+#include "event_processor.h"
+#include "hotkey.h"
 
 int main(void) {
     init_actions();

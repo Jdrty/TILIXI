@@ -1,0 +1,58 @@
+# Build artifacts
+build/
+*.o
+*.a
+*.so
+*.exe
+*.bin
+*.elf
+*.hex
+*.map
+*.d
+*.lst
+
+# PlatformIO
+.pio/
+.vscode/
+.idea/
+
+# Compiled files
+*.class
+*.pyc
+__pycache__/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Debug files
+*.dSYM/
+*.su
+*.idb
+*.pdb
+
+# Test coverage
+*.gcov
+*.gcda
+*.gcno
+
+# Documentation builds
+docs/_build/
+docs/.doctrees/
+
+# Temporary files
+*.tmp
+*.bak
+*.orig
+*.log
+
+# OS files
+Thumbs.db
+.DS_Store
+
+# Compile commands (can be regenerated)
+compile_commands.json

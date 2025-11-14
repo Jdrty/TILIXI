@@ -1,6 +1,9 @@
 #include <stdio.h>
 #include <assert.h>
 #include "keyboard_core.h"
+#include "event_processor.h"
+#include "event_queue.h"
+#include "hotkey.h"
 
 void setup_keyboard(void) {
     // initialize keyboard state for tests
