@@ -9,8 +9,8 @@
     // Arduino.h provides Serial, no need for HardwareSerial.h
     #include <Arduino.h>
     
-    // uses Serial for debug output
-    #ifndef DEBUG_PRINT
+    // uses Serial for debug output (only if not already defined by debug_helper.h)
+    #if !defined(DEBUG_PRINT) && !defined(DEBUG)
         #define DEBUG_PRINT(fmt, ...) Serial.printf(fmt, ##__VA_ARGS__)
     #endif
     

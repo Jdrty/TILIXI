@@ -21,11 +21,10 @@ typedef struct {
     const char *action;
 } keyboard_event;
 
-// Queue functions
+// queue functions
 void push_event(const keyboard_event *evt);
 keyboard_event get_next_event(void);
 
 #ifdef __cplusplus
 }
 #endif
-

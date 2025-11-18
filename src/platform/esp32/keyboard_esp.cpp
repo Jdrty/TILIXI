@@ -7,8 +7,6 @@
 
 #include "platform/esp32/keyboard_esp.h"
 
-// will be keyboard scanning task
-// for now, we'll use a simple approach that can be called from loop()
 static key_event last_key_event = {key_none, 0};
 
 // init ESP32 keyboard
@@ -21,7 +19,6 @@ void keyboard_esp_init(void) {
     ESP_INFO("ESP32 keyboard initialized! :D");
 }
 
-// function to be called periodically (from loop() or a task)
 // this scans the keyboard and processes events
 void keyboard_esp_scan(void) {
     // TODO: add keyboard scanning logic

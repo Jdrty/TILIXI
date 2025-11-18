@@ -1,5 +1,6 @@
 #include <Arduino.h>
 #include "ino_helper.h"
+#include "boot_splash.h"
 #include "action_manager.h"
 #include "event_processor.h"
 #include "hotkey.h"
@@ -11,7 +12,8 @@
         Serial.begin(115200);
         delay_ms(1000);
         
-        ESP_INFO("TILIXI keyboard system starting..."); // in future add check here, kinda pointless print otherwise
+        // initialize boot display (TFT) - show TILIXI text
+        boot_init();
         
         // initialize actions
         init_actions();
@@ -20,15 +22,9 @@
         register_key(mod_shift, key_a, "terminal");
         register_key(mod_shift, key_d, "close_terminal");
         // add more hotkeys as needed
-        
-        // initialize ESP32 keyboard hardware
-        keyboard_esp_init();
     }
     
     void loop(void) {
-        // main loop - scan keyboard periodically
-        keyboard_esp_scan();
-        
         // small delay to prevent CPU spinning
         delay_ms(10);
     }

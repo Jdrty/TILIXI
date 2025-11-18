@@ -7,7 +7,7 @@
 extern "C" {
 #endif
 
-// Process a key event (check for hotkeys, queue events, etc.)
+// process a key event (check for hotkeys, queue events, etc.)
 void process(key_event evt);
 
 #ifdef __cplusplus
