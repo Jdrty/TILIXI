@@ -3,8 +3,20 @@
 #include "action_manager.h"
 #include "event_processor.h"
 #include "hotkey.h"
+#include "process.h"
+#include "process_scheduler.h"
+#include "process_script.h"
 
 int main(void) {
+    // initialize process system
+    init_process_system();
+    init_scheduler();
+    init_script_system();
+    
+    // initialize terminal system
+    init_terminal_system();
+    init_terminal_commands();
+    
     init_actions();
     register_key(mod_shift, key_a, "terminal");
     register_key(mod_shift, key_d, "close_terminal");

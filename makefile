@@ -198,9 +198,14 @@ help:
 	@echo "available targets:"
 	@echo "  make              - compile and link binary (PC)"
 	@echo "  make run          - run it (PC)"
-	@echo "  make test         - run tests"
+	@echo "  make test         - run all tests"
 	@echo "  make rebuild      - clean and rebuild everything"
 	@echo "  make clean        - remove build directory"
+	@echo ""
+	@echo "available test apps:"
+	@for test in $(TEST_NAMES); do \
+		echo "  - $$test"; \
+	done
 	@echo ""
 	@echo "ESP32 targets (requires PlatformIO):"
 	@echo "  make esp32-build  - build for ESP32-S3"

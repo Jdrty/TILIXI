@@ -1,5 +1,8 @@
 #include "action_manager.h"
 
+// forward declaration for process actions
+void register_process_actions(void);
+
 #define max_actions 32
 static action actions[max_actions];
 static uint8_t action_count = 0;
@@ -24,5 +27,9 @@ void execute_action(const char *name) {
 void init_actions(void) {
     register_action("terminal", new_terminal);
     register_action("close_terminal", close_terminal);
+    
+    // register process-related actions
+    register_process_actions();
+    
     // and so on
 }

@@ -41,9 +41,9 @@
     #define delay_ms(ms) usleep((ms) * 1000)
     
     static inline uint32_t get_time_ms(void) {
-        struct timespec ts;
-        clock_gettime(CLOCK_MONOTONIC, &ts);
-        return (uint32_t)(ts.tv_sec * 1000 + ts.tv_nsec / 1000000);
+        struct timeval tv;
+        gettimeofday(&tv, NULL);
+        return (uint32_t)(tv.tv_sec * 1000 + tv.tv_usec / 1000);
     }
     
     // pin definitions (no-op on PC)

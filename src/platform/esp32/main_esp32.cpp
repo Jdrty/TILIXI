@@ -5,6 +5,9 @@
 #include "event_processor.h"
 #include "hotkey.h"
 #include "platform/esp32/keyboard_esp.h"
+#include "process.h"
+#include "process_scheduler.h"
+#include "process_script.h"
 
 #ifdef PLATFORM_ESP32
     void setup(void) {
@@ -14,6 +17,15 @@
         
         // initialize boot display (TFT) - show TILIXI text
         boot_init();
+        
+        // initialize process system
+        init_process_system();
+        init_scheduler();
+        init_script_system();
+        
+        // initialize terminal system
+        init_terminal_system();
+        init_terminal_commands();
         
         // initialize actions
         init_actions();
@@ -25,6 +37,9 @@
     }
     
     void loop(void) {
+        // run scheduler tick
+        scheduler_tick();
+        
         // small delay to prevent CPU spinning
         delay_ms(10);
     }

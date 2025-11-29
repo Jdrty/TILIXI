@@ -3,6 +3,7 @@
 #include "terminal.h"
 
 void setup_terminal(void) {
+    init_terminal_system();  // initialize terminal system
     window_count = 0;  // reset to known state
 }
 
@@ -53,6 +54,9 @@ void test_terminal_close_when_empty(void) {
 void test_terminal_max_windows(void) {
     setup_terminal();
     printf("  test_terminal_max_windows... ");
+    
+    // need to initialize terminal system first
+    init_terminal_system();
     
     for (int i = 0; i < max_windows; i++) {
         new_terminal();
