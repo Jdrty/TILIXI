@@ -40,7 +40,7 @@
 // Logo file path
 #define LOGO_PATH "/boot/logo.raw"
 
-// display object
+// display object (exported for boot_sequence.c)
 #ifdef USE_ST7796S
     Adafruit_ST7796S tft = Adafruit_ST7796S(&SPI, TFT_CS, TFT_DC, TFT_RST);
 #else
@@ -85,7 +85,6 @@ void boot_init(void) {
     // verify rotation worked - after rotation, dimensions swap
     ESP_INFO("Display after rotation: %dx%d", tft.width(), tft.height());
     
-    // start boot - display logo and "TILIXI" text on black background
     tft.fillScreen(ST77XX_WHITE);   // this is extremely stupid, white is actually black
     delay(100);
     
@@ -94,7 +93,6 @@ void boot_init(void) {
     tft.setTextSize(4);
     tft.setTextColor(ST77XX_BLACK, ST77XX_WHITE);  // black text on white background
     tft.setTextWrap(false);
-    tft.print("TILIXI");
     
 }
 
@@ -108,6 +106,38 @@ void boot_refresh(void) {
     tft.setTextColor(ST77XX_BLACK, ST77XX_WHITE);
     tft.setTextWrap(false);
     
-    tft.print("TILIXI");
+}
+
+// C wrapper functions for boot_sequence.c to access TFT
+extern "C" {
+    // color constants for C code
+    #define BOOT_COLOR_BLACK   0x0000
+    #define BOOT_COLOR_WHITE   0xFFFF
+    #define BOOT_COLOR_GREEN   0x07E0
+    #define BOOT_COLOR_RED     0xF800
+    
+    void boot_tft_set_cursor(int16_t x, int16_t y) {
+        tft.setCursor(x, y);
+    }
+    
+    void boot_tft_set_text_size(uint8_t size) {
+        tft.setTextSize(size);
+    }
+    
+    void boot_tft_set_text_color(uint16_t color, uint16_t bg) {
+        tft.setTextColor(color, bg);
+    }
+    
+    void boot_tft_print(const char *str) {
+        tft.print(str);
+    }
+    
+    void boot_tft_fill_screen(uint16_t color) {
+        tft.fillScreen(color);
+    }
+    
+    void boot_tft_fill_rect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t color) {
+        tft.fillRect(x, y, w, h, color);
+    }
 }
 

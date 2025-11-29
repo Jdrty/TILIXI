@@ -5,7 +5,7 @@
 #define queue_size 32
 static keyboard_event event_queue[queue_size];  // array representing the queue
 static uint8_t queue_head = 0;
-static uint8_t queue_tail = 0;  // if you're a reader trying to understand this, think of it as a snake
+static uint8_t queue_tail = 0;  // its a snake!
 
 // system to push next event into queue assuming queue has room
 void push_event(const keyboard_event *evt) {

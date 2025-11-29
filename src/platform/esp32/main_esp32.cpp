@@ -1,6 +1,7 @@
 #include <Arduino.h>
 #include "ino_helper.h"
 #include "boot_splash.h"
+#include "boot_sequence.h"
 #include "action_manager.h"
 #include "event_processor.h"
 #include "hotkey.h"
@@ -8,6 +9,8 @@
 #include "process.h"
 #include "process_scheduler.h"
 #include "process_script.h"
+#include "terminal.h"
+#include "terminal_cmd.h"
 
 #ifdef PLATFORM_ESP32
     void setup(void) {
@@ -18,16 +21,10 @@
         // initialize boot display (TFT) - show TILIXI text
         boot_init();
         
-        // initialize process system
-        init_process_system();
-        init_scheduler();
-        init_script_system();
+        // run boot sequence (handles all initialization)
+        boot_sequence_run();
         
-        // initialize terminal system
-        init_terminal_system();
-        init_terminal_commands();
-        
-        // initialize actions
+        // initialize actions (after boot sequence)
         init_actions();
         
         // register hotkeys
