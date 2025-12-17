@@ -1,3 +1,16 @@
+#define _POSIX_C_SOURCE 200809L
+
+#ifndef ARDUINO
+#include <time.h>
+
+static inline void delay_ms(unsigned int ms) {
+    struct timespec ts;
+    ts.tv_sec = ms / 1000;
+    ts.tv_nsec = (ms % 1000) * 1000000L;
+    nanosleep(&ts, NULL);
+}
+#endif
+
 #include "boot_sequence.h"
 #include "boot_splash.h"
 #include "debug_helper.h"
