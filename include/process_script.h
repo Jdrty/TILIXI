@@ -20,6 +20,7 @@ typedef struct {
     script_command_t *commands;  // array of commands in pipeline
     uint8_t command_count;       // number of commands
     process_id_t *process_ids;    // PIDs of spawned processes
+    uint8_t ref_count;            // reference count for shared contexts (for execute_pipeline)
 } script_context_t;
 
 // script handler function type
@@ -35,6 +36,13 @@ process_id_t execute_pipeline(script_command_t *commands, uint8_t command_count)
 
 // initialize script system
 void init_script_system(void);
+
+// cleanup script context (frees allocated memory)
+// should be called when a script process terminates
+void cleanup_script_context(void *args);
+
+// script entry point wrapper (used to identify script processes)
+void script_entry_wrapper(void *args);
 
 #ifdef __cplusplus
 }

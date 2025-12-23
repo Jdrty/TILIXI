@@ -54,11 +54,8 @@ void test_script_execute(void) {
     setup_process_script();
     printf("  test_script_execute... ");
     
-    static int handler_called = 0;
-    
     void test_handler(script_context_t *ctx) {
         (void)ctx;
-        handler_called = 1;
     }
     
     register_script_handler("test_script", test_handler);
@@ -66,9 +63,12 @@ void test_script_execute(void) {
     char *args[] = {"arg1", "arg2", NULL};
     process_id_t pid = execute_script("test_script", args, 2);
     
-    // script should create a process
-    // Note: actual execution depends on scheduler
-    assert(pid != 0 || handler_called == 0);  // process created or handler called
+    // script should create a process with the script name
+    assert(pid != 0);
+    process_control_block_t *pcb = process_get_pcb(pid);
+    assert(pcb != NULL);
+    assert(strcmp(pcb->name, "test_script") == 0);
+    assert(pcb->state == process_state_ready || pcb->state == process_state_running);
     
     printf("FUNCTIONAL\n");
     teardown_process_script();
@@ -107,11 +107,12 @@ void test_script_pipeline(void) {
     commands[1].input_fd = -1;
     commands[1].output_fd = -1;
     
+    uint8_t initial_count = get_process_count();
     process_id_t pid = execute_pipeline(commands, 2);
     
-    // pipeline should create processes
-    // Note: exact behavior depends on implementation
-    assert(pid != 0 || get_process_count() == 0);
+    // pipeline should create one process per command (at least)
+    assert(pid != 0);
+    assert(get_process_count() >= initial_count + 2);
     
     printf("FUNCTIONAL\n");
     teardown_process_script();

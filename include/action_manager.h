@@ -19,6 +19,9 @@ void register_action(const char *name, action_handler handler);
 void execute_action(const char *name);
 void init_actions(void);
 
+// clear all registered actions (primarily for tests)
+void reset_actions(void);
+
 #ifdef __cplusplus
 }
 #endif

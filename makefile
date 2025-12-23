@@ -180,7 +180,7 @@ filesystem-upload:
 	done
 	@echo "(: all filesystem upload utilities uploaded"
 
-# File read test target
+# file read test target
 .PHONY: file-read
 
 file-read:

@@ -7,6 +7,12 @@ static keyboard_event event_queue[queue_size];  // array representing the queue
 static uint8_t queue_head = 0;
 static uint8_t queue_tail = 0;  // its a snake!
 
+// reset the event queue (used by tests and initialization)
+void reset_event_queue(void) {
+    queue_head = 0;
+    queue_tail = 0;
+}
+
 // system to push next event into queue assuming queue has room
 void push_event(const keyboard_event *evt) {
     uint8_t next = (uint8_t) (queue_head+1);    // wrap around logic, don't want 8 bit integer being promoted to higher values unnecessarily

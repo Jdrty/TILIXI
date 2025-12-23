@@ -14,6 +14,15 @@ void register_action(const char *name, action_handler handler) {
     }
 }
 
+// reset all registered actions (primarily for tests)
+void reset_actions(void) {
+    action_count = 0;
+    for (uint8_t i = 0; i < max_actions; i++) {
+        actions[i].name = NULL;
+        actions[i].handler = NULL;
+    }
+}
+
 void execute_action(const char *name) {
     for (uint8_t i = 0; i < action_count; i++) {
         if (strcmp(actions[i].name, name) == 0) {

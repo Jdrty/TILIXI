@@ -25,6 +25,9 @@ typedef struct {
 void push_event(const keyboard_event *evt);
 keyboard_event get_next_event(void);
 
+// reset the event queue state (primarily for tests)
+void reset_event_queue(void);
+
 #ifdef __cplusplus
 }
 #endif

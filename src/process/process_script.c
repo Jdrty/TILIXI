@@ -47,7 +47,8 @@ script_handler_t find_script_handler(const char *name) {
 }
 
 // simple script entry point wrapper
-static void script_entry_wrapper(void *args) {
+// made non-static so we can identify script processes for cleanup
+void script_entry_wrapper(void *args) {
     script_context_t *ctx = (script_context_t *)args;
     if (ctx == NULL || ctx->commands == NULL) {
         return;
@@ -62,6 +63,48 @@ static void script_entry_wrapper(void *args) {
         // command execution would be handled by terminal_cmd system
         // or by registered script handlers
     }
+}
+
+// cleanup function for script contexts (called when process terminates)
+void cleanup_script_context(void *args) {
+    if (args == NULL) {
+        return;
+    }
+    
+    script_context_t *ctx = (script_context_t *)args;
+    
+    // decrement reference count (for shared contexts in execute_pipeline)
+    // only free when last reference is released
+    if (ctx->ref_count > 0) {
+        ctx->ref_count--;
+    }
+    
+    // only clean up if this was the last reference
+    if (ctx->ref_count > 0) {
+        DEBUG_PRINT("[SCRIPT] Context still referenced (%d), deferring cleanup\n", ctx->ref_count);
+        return;
+    }
+    
+    // distinguish between execute_script and execute_pipeline contexts:
+    // - execute_script: allocates ctx->commands, sets process_ids to NULL
+    // - execute_pipeline: uses passed-in commands (don't free), allocates process_ids
+    // we use process_ids == NULL as indicator that we own the commands array
+    
+    if (ctx->process_ids == NULL) {
+        // this is an execute_script context, we allocated commands
+        if (ctx->commands != NULL) {
+            free(ctx->commands);
+        }
+    } else {
+        // this is an execute_pipeline context, free process_ids, but not commands
+        // (commands array is managed by the caller)
+        free(ctx->process_ids);
+    }
+    
+    // free the context itself
+    free(ctx);
+    
+    DEBUG_PRINT("[SCRIPT] Cleaned up script context\n");
 }
 
 process_id_t execute_script(const char *script_name, char **args, uint8_t arg_count) {
@@ -93,6 +136,7 @@ process_id_t execute_script(const char *script_name, char **args, uint8_t arg_co
     ctx->commands[0].input_fd = -1;   // stdin
     ctx->commands[0].output_fd = -1;  // stdout
     ctx->process_ids = NULL;
+    ctx->ref_count = 1;  // single process owns this context
     
     // create process for script execution
     process_id_t pid = process_create(script_name, script_entry_wrapper, 
@@ -129,15 +173,25 @@ process_id_t execute_pipeline(script_command_t *commands, uint8_t command_count)
     // create processes for each command in pipeline
     // for now, simple sequential execution
     // full pipelining would require pipe setup between processes
+    uint8_t created_count = 0;
     for (uint8_t i = 0; i < command_count; i++) {
-        ctx->process_ids[i] = process_create(
+        process_id_t pid = process_create(
             commands[i].command,
             script_entry_wrapper,
             ctx,
             process_priority_normal,
             0
         );
+        if (pid != 0) {
+            ctx->process_ids[i] = pid;
+            created_count++;
+        } else {
+            ctx->process_ids[i] = 0;
+        }
     }
+    
+    // set reference count to number of processes sharing this context
+    ctx->ref_count = created_count;
     
     DEBUG_PRINT("[SCRIPT] Pipeline created with %d commands\n", command_count);
     return ctx->process_ids[0];  // return first PID

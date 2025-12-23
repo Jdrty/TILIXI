@@ -1,4 +1,5 @@
 #include "process.h"
+#include "process_script.h"
 #include "debug_helper.h"
 #include <string.h>
 
@@ -39,13 +40,24 @@ static uint8_t process_count = 0;
         
         DEBUG_PRINT("[PROCESS] Task started: PID=%d, name=%s\n", pcb->pid, pcb->name);
         
+        // Save entry_point and args for cleanup (before clearing PCB)
+        void (*entry_point)(void *) = pcb->entry_point;
+        void *args = pcb->args;
+        
         // call the actual process entry point
         pcb->entry_point(pcb->args);
+        
+        // clean up script context if this is a script process
+        if (entry_point == script_entry_wrapper && args != NULL) {
+            cleanup_script_context(args);
+        }
         
         // entry point returned, mark as terminated (protected access)
         ENTER_CRITICAL();
         pcb->state = process_state_terminated;
         pcb->active = 0;
+        pcb->entry_point = NULL;
+        pcb->args = NULL;
         pcb->task_handle = NULL;  // clear handle before deletion
         process_count--;
         EXIT_CRITICAL();
@@ -192,6 +204,8 @@ void process_terminate(process_id_t pid) {
     ENTER_CRITICAL();
     
     process_control_block_t *pcb = NULL;
+    void (*entry_point)(void *) = NULL;
+    void *args = NULL;
 #ifdef PLATFORM_ESP32
     TaskHandle_t task_to_delete = NULL;
 #endif
@@ -199,6 +213,9 @@ void process_terminate(process_id_t pid) {
     for (uint8_t i = 0; i < max_processes; i++) {
         if (process_table[i].active && process_table[i].pid == pid) {
             pcb = &process_table[i];
+            // save entry_point and args before clearing (for cleanup)
+            entry_point = process_table[i].entry_point;
+            args = process_table[i].args;
 #ifdef PLATFORM_ESP32
             task_to_delete = process_table[i].task_handle;
             process_table[i].task_handle = NULL;  // clear before deletion
@@ -215,6 +232,11 @@ void process_terminate(process_id_t pid) {
     EXIT_CRITICAL();
     
     if (pcb != NULL) {
+        // clean up script context if this is a script process
+        if (entry_point == script_entry_wrapper && args != NULL) {
+            cleanup_script_context(args);
+        }
+        
 #ifdef PLATFORM_ESP32
         // delete FreeRTOS task outside critical section (may block)
         if (task_to_delete != NULL) {

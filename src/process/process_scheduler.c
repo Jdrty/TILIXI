@@ -159,7 +159,8 @@ void process_yield(void) {
         process_set_state(current_pid, process_state_ready);
         current_pid = 0;
     }
-    scheduler_run();
+    // don't immediately re-schedule, let the process remain ready
+    // until the next scheduler cycle (called from main loop or timer)
 }
 
 #endif
