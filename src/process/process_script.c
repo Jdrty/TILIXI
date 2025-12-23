@@ -96,7 +96,7 @@ process_id_t execute_script(const char *script_name, char **args, uint8_t arg_co
     
     // create process for script execution
     process_id_t pid = process_create(script_name, script_entry_wrapper, 
-                                      ctx, process_priority_normal);
+                                      ctx, process_priority_normal, 0);
     
     if (pid == 0) {
         free(ctx->commands);
@@ -134,7 +134,8 @@ process_id_t execute_pipeline(script_command_t *commands, uint8_t command_count)
             commands[i].command,
             script_entry_wrapper,
             ctx,
-            process_priority_normal
+            process_priority_normal,
+            0
         );
     }
     

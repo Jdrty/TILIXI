@@ -2,6 +2,11 @@
 #include <stdint.h>
 #include <stddef.h>
 
+#ifdef PLATFORM_ESP32
+    #include <FreeRTOS.h>
+    #include <task.h>
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -26,7 +31,7 @@ typedef enum __attribute__((packed)) {
 typedef uint8_t process_id_t;
 
 // process control block (PCB)
-typedef struct __attribute__((packed)) {
+typedef struct {
     process_id_t pid;                    // process identifier
     process_state_t state;               // current state
     process_priority_t priority;         // priority level
@@ -35,11 +40,17 @@ typedef struct __attribute__((packed)) {
     void *args;                          // arguments for entry point
     uint32_t runtime;                    // runtime in ticks/ms
     uint8_t active;                      // is this PCB slot in use
+#ifdef PLATFORM_ESP32
+    TaskHandle_t task_handle;            // FreeRTOS task handle (ESP32 only)
+#endif
 } process_control_block_t;
 
 // process creation and management
+// stack_size_words: stack size in words (only used on ESP32, ignored on PC)
+//   - 0 or < 512 uses default (2048 words = 8KB)
 process_id_t process_create(const char *name, void (*entry_point)(void *args), 
-                            void *args, process_priority_t priority);
+                            void *args, process_priority_t priority,
+                            uint16_t stack_size_words);
 void process_terminate(process_id_t pid);
 void process_set_state(process_id_t pid, process_state_t state);
 process_state_t process_get_state(process_id_t pid);

@@ -34,10 +34,14 @@
     }
     
     void loop(void) {
-        // run scheduler tick
-        scheduler_tick();
+        // freeRTOS handles preemptive scheduling automatically via interrupts
+        // scheduler_tick() is a no-op on ESP32, but kept for API compatibility
+        // this loop() runs in the default FreeRTOS task
+        // other processes run as separate FreeRTOS tasks with preemptive scheduling
+        // i'm so goated
         
-        // small delay to prevent CPU spinning
+        // small delay to prevent CPU spinning in the main loop
+        // note: This doesn't affect process scheduling, FreeRTOS handles that
         delay_ms(10);
     }
     

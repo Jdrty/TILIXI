@@ -57,14 +57,14 @@ void test_scheduler_run_ready(void) {
     setup_scheduler();
     printf("  test_scheduler_run_ready... ");
     
-    process_id_t pid = process_create("task1", test_task1, NULL, process_priority_normal);
+    process_id_t pid = process_create("task1", test_task1, NULL, process_priority_normal, 0);
     assert(pid != 0);
     assert(process_get_state(pid) == process_state_ready);
     
     scheduler_run();
     
     // process should have been executed (entry point called)
-    // Note: in current implementation, entry point is called directly
+    // note: in current implementation, entry point is called directly
     // so we can check if it ran
     assert(task1_run_count > 0 || process_get_state(pid) == process_state_running);
     
@@ -77,15 +77,15 @@ void test_scheduler_priority(void) {
     setup_scheduler();
     printf("  test_scheduler_priority... ");
     
-    (void)process_create("low", test_task1, NULL, process_priority_low);
-    (void)process_create("normal", test_task2, NULL, process_priority_normal);
-    (void)process_create("high", test_task3, NULL, process_priority_high);
+    (void)process_create("low", test_task1, NULL, process_priority_low, 0);
+    (void)process_create("normal", test_task2, NULL, process_priority_normal, 0);
+    (void)process_create("high", test_task3, NULL, process_priority_high, 0);
     
     scheduler_run();
     
     // high priority should be scheduled first
     process_id_t current = scheduler_get_current();
-    // Note: exact behavior depends on implementation, but high priority should be preferred
+    // note: exact behavior depends on implementation, but high priority should be preferred
     assert(current != 0);
     
     printf("FUNCTIONAL\n");
@@ -97,7 +97,7 @@ void test_scheduler_yield(void) {
     setup_scheduler();
     printf("  test_scheduler_yield... ");
     
-    process_id_t pid = process_create("task1", test_task1, NULL, process_priority_normal);
+    process_id_t pid = process_create("task1", test_task1, NULL, process_priority_normal, 0);
     process_set_state(pid, process_state_running);
     
     // verify it's running

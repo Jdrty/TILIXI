@@ -3,6 +3,11 @@
 #include "debug_helper.h"
 #include "ino_helper.h"
 
+#ifdef PLATFORM_ESP32
+    #include <FreeRTOS.h>
+    #include <task.h>
+#endif
+
 static process_id_t current_pid = 0;  // 0 means no process running
 static uint32_t last_schedule_time = 0;
 #define schedule_quantum_ms 10  // time slice per process
@@ -11,7 +16,74 @@ void init_scheduler(void) {
     current_pid = 0;
     last_schedule_time = get_time_ms();
     DEBUG_PRINT("[SCHEDULER] Scheduler initialized\n");
+#ifdef PLATFORM_ESP32
+    DEBUG_PRINT("[SCHEDULER] Using FreeRTOS preemptive scheduling\n");
+#else
+    DEBUG_PRINT("[SCHEDULER] Using cooperative multitasking\n");
+#endif
 }
+
+// mostly just documentation here...
+#ifdef PLATFORM_ESP32
+// ESP32: FreeRTOS handles preemptive scheduling automatically
+// the custom scheduler is redundant, FreeRTOS manages all scheduling via interrupts.
+// these functions are thin wrappers for API compatibility.
+
+void scheduler_run(void) {
+    // no-op on ESP32 - FreeRTOS handles all scheduling automatically via tick interrupt
+    // this function is kept for API compatibility with PC builds
+    // FreeRTOS scheduler runs independently and preempts tasks based on priority
+}
+
+void scheduler_tick(void) {
+    // no-op on ESP32 - FreeRTOS handles scheduling via tick interrupt
+    // this is kept for API compatibility
+    // note: FreeRTOS tick interrupt runs at configTICK_RATE_HZ (typically 1000Hz)
+}
+
+process_id_t scheduler_get_current(void) {
+    // get PCB directly from task parameter (O(1) instead of O(n))
+    // each FreeRTOS task has the PCB pointer as its parameter
+    TaskHandle_t current_task = xTaskGetCurrentTaskHandle();
+    if (current_task != NULL) {
+        // get task parameter (which is the PCB pointer)
+        process_control_block_t *pcb = (process_control_block_t *)pvTaskGetThreadLocalStoragePointer(
+            current_task, 0);
+        
+        // fallback: if TLS not set, use parameter (pvParameters in xTaskCreate)
+        if (pcb == NULL) {
+            // mote: FreeRTOS doesn't provide direct access to pvParameters,
+            // so we fall back to iteration (but this should rarely happen)
+            pcb = process_iterate(NULL);
+            while (pcb != NULL) {
+                if (pcb->active && pcb->task_handle == current_task) {
+                    return pcb->pid;
+                }
+                pcb = process_iterate(pcb);
+            }
+            return 0;
+        }
+        
+        // verify PCB is still valid and matches current task
+        if (pcb->active && pcb->task_handle == current_task) {
+            return pcb->pid;
+        }
+    }
+    return 0;
+}
+
+void process_yield(void) {
+    // yield to FreeRTOS scheduler
+    // NOTE: platform behavior difference:
+    //   - PC: guarantees another task runs (cooperative)
+    //   - ESP32: only yields if higher-priority task is ready (preemptive)
+    //   on ESP32, if all other tasks are lower priority, this task continues immediately.
+    //   this is correct preemptive behavior but differs from PC cooperative semantics.
+    taskYIELD();
+}
+
+#else
+// PC: Cooperative multitasking (original implementation)
 
 // simple round-robin scheduler with priority
 // higher priority processes get scheduled first
@@ -89,4 +161,6 @@ void process_yield(void) {
     }
     scheduler_run();
 }
+
+#endif
 

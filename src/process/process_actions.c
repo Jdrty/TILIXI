@@ -17,7 +17,7 @@ static void example_process_task(void *args) {
 static void action_spawn_process(void) {
     process_id_t pid = process_create("example_task", example_process_task, 
                                       (void *)"example_task", 
-                                      process_priority_normal);
+                                      process_priority_normal, 0);
     if (pid != 0) {
         DEBUG_PRINT("[ACTION] Spawned process with PID=%d\n", pid);
     } else {

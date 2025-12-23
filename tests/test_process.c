@@ -25,7 +25,7 @@ void test_process_create(void) {
         (void)args;
     }
     
-    process_id_t pid = process_create("test_task", test_task, NULL, process_priority_normal);
+    process_id_t pid = process_create("test_task", test_task, NULL, process_priority_normal, 0);
     assert(pid != 0);
     assert(get_process_count() == 1);
     
@@ -48,7 +48,7 @@ void test_process_terminate(void) {
         (void)args;
     }
     
-    process_id_t pid = process_create("test_task", test_task, NULL, process_priority_normal);
+    process_id_t pid = process_create("test_task", test_task, NULL, process_priority_normal, 0);
     assert(get_process_count() == 1);
     
     process_terminate(pid);
@@ -70,7 +70,7 @@ void test_process_state(void) {
         (void)args;
     }
     
-    process_id_t pid = process_create("test_task", test_task, NULL, process_priority_normal);
+    process_id_t pid = process_create("test_task", test_task, NULL, process_priority_normal, 0);
     assert(process_get_state(pid) == process_state_ready);
     
     process_set_state(pid, process_state_running);
@@ -92,9 +92,9 @@ void test_process_multiple(void) {
         (void)args;
     }
     
-    process_id_t pid1 = process_create("task1", test_task, NULL, process_priority_low);
-    process_id_t pid2 = process_create("task2", test_task, NULL, process_priority_normal);
-    process_id_t pid3 = process_create("task3", test_task, NULL, process_priority_high);
+    process_id_t pid1 = process_create("task1", test_task, NULL, process_priority_low, 0);
+    process_id_t pid2 = process_create("task2", test_task, NULL, process_priority_normal, 0);
+    process_id_t pid3 = process_create("task3", test_task, NULL, process_priority_high, 0);
     
     assert(get_process_count() == 3);
     assert(pid1 != pid2 && pid2 != pid3 && pid1 != pid3);
@@ -121,9 +121,9 @@ void test_process_iterate(void) {
         (void)args;
     }
     
-    process_create("task1", test_task, NULL, process_priority_normal);
-    process_create("task2", test_task, NULL, process_priority_normal);
-    process_create("task3", test_task, NULL, process_priority_normal);
+    process_create("task1", test_task, NULL, process_priority_normal, 0);
+    process_create("task2", test_task, NULL, process_priority_normal, 0);
+    process_create("task3", test_task, NULL, process_priority_normal, 0);
     
     uint8_t count = 0;
     process_control_block_t *pcb = process_iterate(NULL);
@@ -151,14 +151,14 @@ void test_process_max_limit(void) {
     for (int i = 0; i < 16; i++) {
         char name[16];
         snprintf(name, sizeof(name), "task%d", i);
-        process_id_t pid = process_create(name, test_task, NULL, process_priority_normal);
+        process_id_t pid = process_create(name, test_task, NULL, process_priority_normal, 0);
         assert(pid != 0);
     }
     
     assert(get_process_count() == 16);
     
     // try to create one more - should fail
-    process_id_t pid = process_create("overflow", test_task, NULL, process_priority_normal);
+    process_id_t pid = process_create("overflow", test_task, NULL, process_priority_normal, 0);
     assert(pid == 0);
     assert(get_process_count() == 16);
     
