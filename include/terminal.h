@@ -26,6 +26,7 @@ typedef struct {
 // command token structure
 typedef struct {
     char *tokens[terminal_cols];  // array of token pointers
+    char token_storage[terminal_cols][terminal_cols];  // actual storage for token strings
     uint8_t token_count;
     uint8_t has_pipe;  // 1 if command contains pipe
     uint8_t pipe_pos;  // position of pipe in tokens
