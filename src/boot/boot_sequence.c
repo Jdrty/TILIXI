@@ -32,6 +32,9 @@ static inline void delay_ms(unsigned int ms) {
     void boot_tft_print(const char *str);
     void boot_tft_fill_screen(uint16_t color);
     void boot_tft_fill_rect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t color);
+    void boot_tft_draw_rect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t color);
+    int16_t boot_tft_get_width(void);
+    int16_t boot_tft_get_height(void);
     
     #define COLOR_BLACK   0x0000
     #define COLOR_WHITE  0xFFFF
@@ -202,22 +205,20 @@ void boot_emergency_tty(void) {
 #endif
 }
 
+
 void boot_start_desktop(void) {
     DEBUG_PRINT("[BOOT] Starting desktop\n");
     
 #ifdef ARDUINO
-    // PLACEHOLDER: Desktop not implemented yet
-    // this would start the main desktop environment
-    boot_tft_set_cursor(10, boot_line_y + 10);
-    boot_tft_set_text_size(2);
-    boot_tft_set_text_color(COLOR_BLACK, COLOR_WHITE);
-    boot_tft_print("Starting desktop...");
-    delay_ms(500);
+    // wait 2 seconds after boot completes
+    delay_ms(2000);
     
-    // desktop would be initialized here
-    // for now, just continue to main loop
+    // render terminal interface
+    boot_render_terminal();
+    
+    DEBUG_PRINT("[BOOT] Desktop started - Terminal ready\n");
 #else
-    fprintf(stderr, "Desktop (placeholder)\n");
+    fprintf(stderr, "Desktop started - Terminal ready\n");
 #endif
 }
 
@@ -253,7 +254,7 @@ int boot_low_level_bringup(void) {
 }
 
 int boot_init_core_services(void) {
-    // Initialize core system services
+    // initialize core system services
     // - event queue
     // - debug system
     // - basic I/O
@@ -265,6 +266,7 @@ int boot_init_core_services(void) {
 int boot_mount_sd(void) {
     // mount micro SD card
     // PLACEHOLDER: SD card not connected yet
+    // i'll do this one day
     
 #ifdef ARDUINO
     // SD card initialization would go here
@@ -308,12 +310,279 @@ int boot_register_commands(void) {
     return 0;
 }
 
-int boot_init_processes(void) {
-    // start initial system processes
-    // PLACEHOLDER: No initial processes yet
+// process dependency definition
+typedef struct {
+    const char *name;                      // process name
+    void (*entry_point)(void *args);       // entry point function
+    void *args;                            // arguments for entry point
+    process_priority_t priority;            // process priority
+    uint16_t stack_size_words;             // stack size (0 for default)
+    const char **dependencies;             // array of dependency names (NULL-terminated)
+    uint8_t dependency_count;              // number of dependencies
+    process_id_t pid;                      // assigned PID after creation
+    uint8_t started;                       // whether process has been started
+} boot_process_def_t;
+
+// maximum number of initial processes
+#define max_boot_processes 8
+
+// process health check result
+typedef struct {
+    process_id_t pid;
+    const char *name;
+    uint8_t is_healthy;                    // 1 if healthy, 0 if not
+    process_state_t state;
+} process_health_t;
+
+// initial system processes (add more as needed)
+static boot_process_def_t boot_processes[max_boot_processes];
+static uint8_t boot_process_count = 0;
+
+// example system process entry points (can be expanded)
+static void system_idle_task(void *args) {
+    (void)args;
+    DEBUG_PRINT("[BOOT_PROCESS] System idle task started\n");
+    // idle task runs continuously
+    while (1) {
+        process_yield();
+        delay_ms(100);
+    }
+}
+
+// register a boot process definition
+static void boot_register_process(const char *name, 
+                                  void (*entry_point)(void *args),
+                                  void *args,
+                                  process_priority_t priority,
+                                  uint16_t stack_size_words,
+                                  const char **dependencies) {
+    if (boot_process_count >= max_boot_processes) {
+        DEBUG_PRINT("[BOOT] Warning: Max boot processes reached, cannot register: %s\n", name);
+        return;
+    }
     
-    // could start background processes here
+    boot_process_def_t *def = &boot_processes[boot_process_count];
+    def->name = name;
+    def->entry_point = entry_point;
+    def->args = args;
+    def->priority = priority;
+    def->stack_size_words = stack_size_words;
+    def->dependencies = dependencies;
+    def->pid = 0;
+    def->started = 0;
+    
+    // count dependencies
+    def->dependency_count = 0;
+    if (dependencies != NULL) {
+        while (dependencies[def->dependency_count] != NULL) {
+            def->dependency_count++;
+        }
+    }
+    
+    boot_process_count++;
+    DEBUG_PRINT("[BOOT] Registered boot process: %s (dependencies: %d)\n", 
+               name, def->dependency_count);
+}
+
+// check if a process dependency is satisfied (dependency process is running)
+static uint8_t boot_check_dependency_satisfied(const char *dep_name) {
+    // find the dependency process
+    for (uint8_t i = 0; i < boot_process_count; i++) {
+        if (boot_processes[i].name != NULL && 
+            strcmp(boot_processes[i].name, dep_name) == 0) {
+            // check if dependency process is started and running
+            if (boot_processes[i].started && boot_processes[i].pid != 0) {
+                process_control_block_t *pcb = process_get_pcb(boot_processes[i].pid);
+                if (pcb != NULL && pcb->active) {
+                    process_state_t state = process_get_state(boot_processes[i].pid);
+                    // dependency is satisfied if process is running or ready
+                    return (state == process_state_running || 
+                            state == process_state_ready);
+                }
+            }
+            return 0;  // dependency not started or not running
+        }
+    }
+    // dependency not found in boot processes (might be external)
+    // for now, assume satisfied if not found
+    return 1;
+}
+
+// check if all dependencies for a process are satisfied
+static uint8_t boot_check_all_dependencies_satisfied(boot_process_def_t *def) {
+    if (def->dependencies == NULL || def->dependency_count == 0) {
+        return 1;  // no dependencies
+    }
+    
+    for (uint8_t i = 0; i < def->dependency_count; i++) {
+        if (!boot_check_dependency_satisfied(def->dependencies[i])) {
+            return 0;  // at least one dependency not satisfied
+        }
+    }
+    return 1;  // all dependencies satisfied
+}
+
+// start a single boot process
+static int boot_start_process(boot_process_def_t *def) {
+    if (def->started) {
+        DEBUG_PRINT("[BOOT] Process already started: %s\n", def->name);
+        return 0;  // already started
+    }
+    
+    // check dependencies
+    if (!boot_check_all_dependencies_satisfied(def)) {
+        DEBUG_PRINT("[BOOT] Dependencies not satisfied for: %s\n", def->name);
+        return -1;  // dependencies not ready
+    }
+    
+    // create the process
+    process_id_t pid = process_create(def->name, def->entry_point, def->args,
+                                     def->priority, def->stack_size_words);
+    
+    if (pid == 0) {
+        DEBUG_PRINT("[BOOT] Failed to create process: %s\n", def->name);
+        return -1;  // creation failed
+    }
+    
+    def->pid = pid;
+    def->started = 1;
+    
+    DEBUG_PRINT("[BOOT] Started process: %s (PID=%d)\n", def->name, pid);
+    
+    // give process time to initialize (especially on ESP32)
+    delay_ms(50);
+    
     return 0;
+}
+
+// start all boot processes in dependency order
+static int boot_start_all_processes(void) {
+    uint8_t started_this_round = 1;
+    uint8_t max_iterations = boot_process_count * 2;  // prevent infinite loops
+    uint8_t iteration = 0;
+    
+    while (started_this_round > 0 && iteration < max_iterations) {
+        started_this_round = 0;
+        iteration++;
+        
+        // try to start each process that hasn't been started yet
+        for (uint8_t i = 0; i < boot_process_count; i++) {
+            if (!boot_processes[i].started) {
+                if (boot_start_process(&boot_processes[i]) == 0) {
+                    started_this_round++;
+                }
+            }
+        }
+    }
+    
+    // check if all processes were started
+    uint8_t all_started = 1;
+    for (uint8_t i = 0; i < boot_process_count; i++) {
+        if (!boot_processes[i].started) {
+            DEBUG_PRINT("[BOOT] Failed to start process: %s\n", boot_processes[i].name);
+            all_started = 0;
+        }
+    }
+    
+    if (!all_started) {
+        DEBUG_PRINT("[BOOT] Warning: Some processes failed to start\n");
+    }
+    
+    return (all_started ? 0 : -1);
+}
+
+// check health of a single process
+static process_health_t boot_check_process_health(boot_process_def_t *def) {
+    process_health_t health = {0};
+    health.pid = def->pid;
+    health.name = def->name;
+    health.is_healthy = 0;
+    health.state = process_state_terminated;
+    
+    if (!def->started || def->pid == 0) {
+        return health;  // process not started
+    }
+    
+    process_control_block_t *pcb = process_get_pcb(def->pid);
+    if (pcb == NULL || !pcb->active) {
+        return health;  // process not found or inactive
+    }
+    
+    health.state = process_get_state(def->pid);
+    
+    // process is healthy if it's running or ready
+    // terminated or blocked might indicate issues
+    health.is_healthy = (health.state == process_state_running || 
+                        health.state == process_state_ready);
+    
+    return health;
+}
+
+// check health of all boot processes
+static int boot_check_all_processes_health(void) {
+    uint8_t all_healthy = 1;
+    
+    for (uint8_t i = 0; i < boot_process_count; i++) {
+        process_health_t health = boot_check_process_health(&boot_processes[i]);
+        
+        if (boot_processes[i].started) {
+            if (!health.is_healthy) {
+                DEBUG_PRINT("[BOOT] Process health check failed: %s (PID=%d, state=%d)\n",
+                           health.name, health.pid, health.state);
+                all_healthy = 0;
+            } else {
+                DEBUG_PRINT("[BOOT] Process health check OK: %s (PID=%d, state=%d)\n",
+                           health.name, health.pid, health.state);
+            }
+        }
+    }
+    
+    return (all_healthy ? 0 : -1);
+}
+
+int boot_init_processes(void) {
+    // initialize boot process registry
+    boot_process_count = 0;
+    for (uint8_t i = 0; i < max_boot_processes; i++) {
+        boot_processes[i].name = NULL;
+        boot_processes[i].entry_point = NULL;
+        boot_processes[i].args = NULL;
+        boot_processes[i].priority = process_priority_normal;
+        boot_processes[i].stack_size_words = 0;
+        boot_processes[i].dependencies = NULL;
+        boot_processes[i].dependency_count = 0;
+        boot_processes[i].pid = 0;
+        boot_processes[i].started = 0;
+    }
+    
+    // register initial system processes
+    // example: system idle task (no dependencies)
+    boot_register_process("system_idle", system_idle_task, NULL,
+                         process_priority_low, 0, NULL);
+    
+    // add more initial processes here as needed
+    // example with dependencies:
+    // const char *service_deps[] = {"system_idle", NULL};
+    // boot_register_process("service_name", service_entry, NULL,
+    //                      process_priority_normal, 0, service_deps);
+    
+    // start all processes in dependency order
+    int ret = boot_start_all_processes();
+    if (ret != 0) {
+        DEBUG_PRINT("[BOOT] Warning: Some processes failed to start\n");
+        // continue anyway, but log the issue
+    }
+    
+    // perform initial health check
+    delay_ms(100);  // give processes time to initialize
+    ret = boot_check_all_processes_health();
+    if (ret != 0) {
+        DEBUG_PRINT("[BOOT] Warning: Some processes failed health check\n");
+        // continue anyway, but log the issue
+    }
+    
+    DEBUG_PRINT("[BOOT] Initialized %d boot processes\n", boot_process_count);
+    return 0;  // return success even if some processes have issues
 }
 
 int boot_start_event_loop(void) {

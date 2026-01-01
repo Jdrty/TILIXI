@@ -26,6 +26,7 @@ void boot_sequence_run(void);
 // emergency and desktop functions
 void boot_emergency_tty(void);
 void boot_start_desktop(void);
+void boot_render_terminal(void);
 int boot_verify_systems_ready(void);
 
 // individual boot step functions (return 0 on success, non-zero on failure)

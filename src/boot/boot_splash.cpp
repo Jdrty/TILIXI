@@ -139,5 +139,17 @@ extern "C" {
     void boot_tft_fill_rect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t color) {
         tft.fillRect(x, y, w, h, color);
     }
+    
+    void boot_tft_draw_rect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t color) {
+        tft.drawRect(x, y, w, h, color);
+    }
+    
+    int16_t boot_tft_get_width(void) {
+        return tft.width();
+    }
+    
+    int16_t boot_tft_get_height(void) {
+        return tft.height();
+    }
 }
 
