@@ -199,6 +199,25 @@ file-read:
 	@echo "(: NOTE: You should see output immediately. If not, try resetting the device."
 	$(PIO) device monitor -e esp32-s3-file-read --baud 115200
 
+# SD card read/write/delete test target
+.PHONY: sdtest
+
+sdtest:
+	@if [ -z "$(PIO)" ]; then \
+		echo "error: PlatformIO not found. install it now!! >:[ "; \
+		exit 1; \
+	fi
+	@echo "building SD card test for ESP32-S3..."
+	$(PIO) run -e esp32-s3-sdtest
+	@echo "uploading SD card test to ESP32-S3..."
+	$(PIO) run -e esp32-s3-sdtest -t upload
+	@echo "(: SD card test uploaded"
+	@echo "(: waiting 2 seconds for device to reset..."
+	@sleep 2
+	@echo "(: opening serial monitor (ctrl+c to exit)..."
+	@echo "(: NOTE: You should see output immediately. If not, try resetting the device."
+	$(PIO) device monitor -e esp32-s3-sdtest --baud 115200
+
 test_tft_restore:	# uneeded, just feel safer with this for some reason, remove later
 	@if [ -f "src/platform/esp32/main_esp32.cpp.bak" ]; then \
 		mv src/platform/esp32/main_esp32.cpp.bak src/platform/esp32/main_esp32.cpp; \
