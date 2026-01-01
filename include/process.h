@@ -2,6 +2,12 @@
 #include <stdint.h>
 #include <stddef.h>
 
+#ifndef PLATFORM_ESP32
+    #ifdef ARDUINO
+        #define PLATFORM_ESP32 1
+    #endif
+#endif
+
 #ifdef PLATFORM_ESP32
     #include <FreeRTOS.h>
     #include <task.h>
