@@ -1,3 +1,5 @@
+// THIS FILE NEEEEEDS TO BE REFACTORED
+
 #define _POSIX_C_SOURCE 200809L
 
 #ifndef ARDUINO
@@ -213,8 +215,10 @@ void boot_start_desktop(void) {
     // wait 2 seconds after boot completes
     delay_ms(2000);
     
-    // render terminal interface
-    boot_render_terminal();
+    // create first terminal (fullscreen)
+    #include "terminal.h"
+    #include "action_manager.h"
+    new_terminal();
     
     DEBUG_PRINT("[BOOT] Desktop started - Terminal ready\n");
 #else
@@ -237,7 +241,7 @@ int boot_verify_systems_ready(void) {
 
 // boot step implementations
 int boot_low_level_bringup(void) {
-    // Low-level hardware initialization
+    // low-level hardware initialization
     // - GPIO setup
     // - Clock configuration
     // - Basic peripherals
@@ -281,7 +285,7 @@ int boot_mount_sd(void) {
 }
 
 int boot_init_os_subsystems(void) {
-    // Initialize all OS subsystems
+    // initialize all OS subsystems
     // - Process system
     // - Scheduler
     // - Script system

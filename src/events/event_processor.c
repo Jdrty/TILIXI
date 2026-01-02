@@ -1,25 +1,20 @@
+// main event processor file - coordinates event routing
 #include "event_processor.h"
-#include "hotkey.h"
-#include "terminal.h"
-#include "debug_helper.h"
-#include <stdio.h>
+#include "keyboard_core.h"
 
+// forward declarations from sub-modules
+extern int event_process_hotkey(key_event evt);
+extern void event_process_terminal(key_event evt);
+
+// main event processing function
+// routes events to appropriate handlers (hotkeys first, then terminal)
 void process(key_event evt) {
-    // first check for hotkeys
-    const char *action = find_hotkey_action(evt);
-    if (action != NULL) {
-        keyboard_event ke = {event_hotkey, evt.key, evt.modifiers, action};
-        push_event(&ke);
-        execute_action(action);
-        DEBUG_PRINT("[KEY] hotkey triggered! %s\n", ke.action);
-        fflush(stdout);
+    // first check for hotkeys - must check BEFORE terminal input
+    if (event_process_hotkey(evt)) {
+        // IMPORTANT: return early to prevent hotkey from also being sent to terminal
         return;
     }
     
-    // if no hotkey, send to active terminal for input
-    terminal_state *term = get_active_terminal();
-    if (term != NULL && term->active) {
-        terminal_handle_key_event(evt);
-    }
+    // if no hotkey, send to terminal
+    event_process_terminal(evt);
 }
-

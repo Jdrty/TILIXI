@@ -24,6 +24,9 @@
         // run boot sequence (handles all initialization)
         boot_sequence_run();
         
+        // initialize keyboard (for serial input)
+        keyboard_esp_init();
+        
         // initialize actions (after boot sequence)
         init_actions();
         
@@ -39,6 +42,9 @@
         // this loop() runs in the default FreeRTOS task
         // other processes run as separate FreeRTOS tasks with preemptive scheduling
         // i'm so goated
+        
+        // scan for keyboard input from serial monitor
+        keyboard_esp_scan();
         
         // small delay to prevent CPU spinning in the main loop
         // note: This doesn't affect process scheduling, FreeRTOS handles that

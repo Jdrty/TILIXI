@@ -32,6 +32,13 @@ typedef struct {
     uint8_t pipe_pos;  // position of pipe in tokens
 } command_tokens_t;
 
+// split direction for window splitting
+typedef enum {
+    SPLIT_NONE,      // no split (fullscreen)
+    SPLIT_HORIZONTAL, // split horizontally (top/bottom)
+    SPLIT_VERTICAL    // split vertically (left/right)
+} split_direction_t;
+
 typedef struct {
     char buffer[terminal_buffer_size];  // whats being displayed
     char input_line[terminal_cols];
@@ -43,6 +50,13 @@ typedef struct {
     uint8_t active;     // is terminal in use
     uint8_t input_pos;  // cursor position in input
     terminal_pipe_t pipes[max_pipe_commands];  // pipes for command chaining
+    
+    // window geometry for display
+    int16_t x;          // window x position
+    int16_t y;          // window y position
+    int16_t width;      // window width
+    int16_t height;     // window height
+    split_direction_t split_dir;  // how this window was split
 } terminal_state;
 
 // expose for testing
@@ -82,6 +96,13 @@ void terminal_wire_pipes(terminal_pipe_t *pipe1, terminal_pipe_t *pipe2);
 
 // keyboard input handling
 void terminal_handle_key_event(key_event evt);
+
+// terminal rendering (ESP32 only)
+#ifdef ARDUINO
+void terminal_render_all(void);
+void terminal_render_all_full(void);  // force full screen refresh
+void terminal_render_window(terminal_state *term);
+#endif
 
 #ifdef __cplusplus
 }

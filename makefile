@@ -107,7 +107,7 @@ clean:
 rebuild: clean all
 
 # ESP32/PlatformIO targets
-.PHONY: esp32-build esp32-upload esp32-monitor esp32-clean esp32-all
+.PHONY: esp32-build esp32-upload esp32-monitor esp32-clean esp32-all esp32-small
 
 # check if PlatformIO is available
 PIO := $(shell command -v pio 2> /dev/null)
@@ -151,6 +151,13 @@ esp32-clean:
 
 esp32-all: esp32-build esp32-upload
 	@echo "(: ESP32 build and upload complete"
+
+esp32-small: esp32-all
+	@echo "(: waiting 2 seconds for device to reset..."
+	@sleep 2
+	@echo "(: opening serial monitor (ctrl+c to exit)..."
+	@echo "(: NOTE: You can now type in the serial monitor to interact with the TTY interface."
+	$(PIO) device monitor -e esp32-s3-devkitc-1
 
 # Filesystem initialization utility targets
 .PHONY: filesystem-build filesystem-upload
@@ -265,6 +272,7 @@ help:
 	@echo "  make esp32-monitor - open serial monitor"
 	@echo "  make esp32-clean  - clean ESP32 build"
 	@echo "  make esp32-all    - build and upload in one step"
+	@echo "  make esp32-small  - build, upload, and open serial monitor (for TTY input)"
 	@echo ""
 	@echo "  make esp32-upload-direct - upload using esptool.py directly"
 	@echo "    (set ESP32_PORT=/dev/ttyUSB0 and ESP32_BAUD=921600 if needed)"
