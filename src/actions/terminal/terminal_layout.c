@@ -391,6 +391,3 @@ void close_terminal(void) {
     
     DEBUG_PRINT("[ACTION] Terminal closed count is %d\n", window_count);
 }
-
-
-

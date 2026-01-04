@@ -9,6 +9,3 @@ void event_process_terminal(key_event evt) {
         terminal_handle_key_event(evt);
     }
 }
-
-
-

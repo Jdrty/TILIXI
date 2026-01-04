@@ -121,6 +121,3 @@ void terminal_execute_pipeline(terminal_state *term, command_tokens_t *tokens) {
     
     terminal_close_pipe(pipe);
 }
-
-
-

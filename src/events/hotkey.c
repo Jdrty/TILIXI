@@ -35,4 +35,3 @@ const char *find_hotkey_action(key_event evt) {
     }
     return NULL;
 }
-

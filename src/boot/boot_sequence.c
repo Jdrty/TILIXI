@@ -331,6 +331,11 @@ int boot_mount_sd(void) {
 
 int boot_init_sd_filesystem(void) {
     // check SD card filesystem and initialize required structure
+    //
+    // NOTE: This function currently uses direct SD library calls for initial
+    // filesystem structure setup. This is a temporary exception during boot.
+    // All other filesystem operations MUST go through VFS (see include/vfs.h).
+    // This function will be migrated to use VFS in a future update.
     
 #ifdef ARDUINO
     // check if SD card is mounted
