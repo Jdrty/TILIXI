@@ -1,5 +1,16 @@
 // THIS FILE NEEEEEDS TO BE REFACTORED
 
+// NOTE TO SELF SINCE I REALIZED SOMETHING WHILE ADDING SD:
+// sd card contents are gonna have to be put onto the esp itself while in use since turns out
+// even if you have two sets of spi pins, you can't use both at the same time.
+// therefore, to make any of this work, we need to find a way to determine whether a file is needed,
+// if we know it will be needed no matter what when entering a dir, load it as well as the dir we enter
+// there will obviously be some common essentials that will always be loaded onto the esp.
+// then, some actions may need specific dependancies, so while doing that action, do a quick swap from the tft to spi and load it.
+// anyway, you get the point, create the illusion of persistent files while in reality we just load whatevers needed.
+// while writing this, i realize this is what i would've done even without this hurdle just without turning off the tft.......
+// because obviously you cant interact with sd card contents as if they're active on the microcontroller. whatever im not deleting this
+
 #define _POSIX_C_SOURCE 200809L
 
 #ifndef ARDUINO
@@ -63,7 +74,7 @@ void boot_sequence_init(void) {
     
 #ifdef ARDUINO
     // TFT is already initialized by boot_init() in main_esp32.cpp
-    // start displaying boot messages (TILIXI title is handled by boot_splash)
+    // start displaying boot messages 
     boot_tft_set_text_size(2);
     boot_tft_set_text_color(COLOR_BLACK, COLOR_WHITE);
     boot_line_y = 20;  // start at top for boot messages
@@ -170,7 +181,7 @@ void boot_halt(const char *message) {
     // and i dont know if it ever will, why do you need emergency tty on something like this?
     // eh ill add it anyway
     // this reminds me I need to add root
-    boot_emergency_tty();
+    boot_emergency_tty(message);
 #else
     // PC: exit
     fprintf(stderr, "SYSTEM HALTED: %s\n", message ? message : "Unknown error");
@@ -178,8 +189,11 @@ void boot_halt(const char *message) {
 #endif
 }
 
-void boot_emergency_tty(void) {
+void boot_emergency_tty(const char *failure_reason) {
     DEBUG_PRINT("[BOOT] Entering emergency TTY\n");
+    if (failure_reason) {
+        DEBUG_PRINT("[BOOT] Boot failure reason: %s\n", failure_reason);
+    }
     
 #ifdef ARDUINO
     // clear screen and show emergency prompt
@@ -188,10 +202,37 @@ void boot_emergency_tty(void) {
     boot_tft_set_text_size(2);
     boot_tft_set_text_color(COLOR_RED, COLOR_WHITE);
     boot_tft_print("EMERGENCY TTY");
+    
+    // display boot failure reason
     boot_tft_set_cursor(10, 40);
     boot_tft_set_text_color(COLOR_BLACK, COLOR_WHITE);
-    boot_tft_print("System in emergency mode");
+    boot_tft_print("Boot failed:");
+    
     boot_tft_set_cursor(10, 70);
+    boot_tft_set_text_color(COLOR_RED, COLOR_WHITE);
+    if (failure_reason && strlen(failure_reason) > 0) {
+        // truncate long messages to fit on screen (approximately 40 chars at size 2)
+        char display_msg[45];
+        int len = strlen(failure_reason);
+        if (len > 40) {
+            strncpy(display_msg, failure_reason, 37);
+            display_msg[37] = '.';
+            display_msg[38] = '.';
+            display_msg[39] = '.';
+            display_msg[40] = '\0';
+        } else {
+            strncpy(display_msg, failure_reason, sizeof(display_msg) - 1);
+            display_msg[sizeof(display_msg) - 1] = '\0';
+        }
+        boot_tft_print(display_msg);
+    } else {
+        boot_tft_print("Unknown error");
+    }
+    
+    boot_tft_set_cursor(10, 100);
+    boot_tft_set_text_color(COLOR_BLACK, COLOR_WHITE);
+    boot_tft_print("System in emergency mode");
+    boot_tft_set_cursor(10, 130);
     boot_tft_print("PLACEHOLDER - Not implemented");
     
     // this would provide a minimal terminal for recovery
@@ -201,6 +242,9 @@ void boot_emergency_tty(void) {
     }
 #else
     fprintf(stderr, "EMERGENCY TTY (placeholder)\n");
+    if (failure_reason) {
+        fprintf(stderr, "Boot failure reason: %s\n", failure_reason);
+    }
     while (1) {
         delay_ms(1000);
     }
@@ -269,17 +313,225 @@ int boot_init_core_services(void) {
 
 int boot_mount_sd(void) {
     // mount micro SD card
-    // PLACEHOLDER: SD card not connected yet
-    // i'll do this one day
     
 #ifdef ARDUINO
-    // SD card initialization would go here
-    // for now, just return success (placeholder)
-    // so many placeholders..
-    delay_ms(50);
+    int ret = boot_sd_mount();
+    if (ret != 0) {
+        DEBUG_PRINT("[BOOT] SD card initialization failed\n");
+        return -1;
+    }
+    
+    DEBUG_PRINT("[BOOT] SD card mounted successfully\n");
     return 0;
 #else
     // PC: no SD card
+    return 0;
+#endif
+}
+
+int boot_init_sd_filesystem(void) {
+    // check SD card filesystem and initialize required structure
+    
+#ifdef ARDUINO
+    // check if SD card is mounted
+    if (boot_sd_available() != 0) {
+        DEBUG_PRINT("[BOOT] SD card not available for filesystem init\n");
+        return -1;
+    }
+    
+    // check if root directory is empty
+    int root_empty = boot_sd_is_directory_empty("/");
+    
+    if (root_empty) {
+        DEBUG_PRINT("[BOOT] SD card is empty, creating full filesystem structure\n");
+        
+        // create all required directories
+        boot_sd_ensure_directory("/bin");
+        boot_sd_ensure_directory("/dev");
+        boot_sd_ensure_directory("/dev/input");
+        boot_sd_ensure_directory("/dev/pipe");
+        boot_sd_ensure_directory("/etc");
+        boot_sd_ensure_directory("/home");
+        boot_sd_ensure_directory("/home/user");
+        boot_sd_ensure_directory("/home/user/documents");
+        boot_sd_ensure_directory("/proc");
+        boot_sd_ensure_directory("/proc/tasks");
+        boot_sd_ensure_directory("/run");
+        boot_sd_ensure_directory("/run/pipes");
+        boot_sd_ensure_directory("/run/tasks");
+        boot_sd_ensure_directory("/run/events");
+        boot_sd_ensure_directory("/tmp");
+        boot_sd_ensure_directory("/usr");
+        boot_sd_ensure_directory("/usr/bin");
+        boot_sd_ensure_directory("/usr/bin/games");
+        boot_sd_ensure_directory("/usr/bin/demos");
+        boot_sd_ensure_directory("/usr/share");
+        boot_sd_ensure_directory("/usr/share/help");
+        boot_sd_ensure_directory("/usr/share/fonts");
+        boot_sd_ensure_directory("/usr/share/banners");
+        boot_sd_ensure_directory("/var");
+        boot_sd_ensure_directory("/var/log");
+        
+        // create all required files in /bin
+        boot_sd_ensure_file("/bin/sh", NULL);
+        boot_sd_ensure_file("/bin/ls", NULL);
+        boot_sd_ensure_file("/bin/cat", NULL);
+        boot_sd_ensure_file("/bin/echo", NULL);
+        boot_sd_ensure_file("/bin/ps", NULL);
+        boot_sd_ensure_file("/bin/kill", NULL);
+        boot_sd_ensure_file("/bin/clear", NULL);
+        boot_sd_ensure_file("/bin/help", NULL);
+        boot_sd_ensure_file("/bin/reboot", NULL);
+        boot_sd_ensure_file("/bin/nano", NULL);
+        boot_sd_ensure_file("/bin/top", NULL);
+        boot_sd_ensure_file("/bin/uptime", NULL);
+        boot_sd_ensure_file("/bin/meminfo", NULL);
+        boot_sd_ensure_file("/bin/logread", NULL);
+        
+        // create all required files in /dev
+        boot_sd_ensure_file("/dev/tty", NULL);
+        boot_sd_ensure_file("/dev/tty0", NULL);
+        boot_sd_ensure_file("/dev/null", NULL);
+        boot_sd_ensure_file("/dev/input/keyboard", NULL);
+        
+        // create all required files in /etc
+        boot_sd_ensure_file("/etc/passwd", NULL);
+        boot_sd_ensure_file("/etc/shells", NULL);
+        boot_sd_ensure_file("/etc/system.conf", NULL);
+        boot_sd_ensure_file("/etc/tty.conf", NULL);
+        boot_sd_ensure_file("/etc/keymap.conf", NULL);
+        boot_sd_ensure_file("/etc/motd", NULL);
+        
+        // create all required files in /home/user
+        boot_sd_ensure_file("/home/user/.profile", NULL);
+        boot_sd_ensure_file("/home/user/.history", NULL);
+        boot_sd_ensure_file("/home/user/.editorrc", NULL);
+        
+        // create all required files in /proc
+        boot_sd_ensure_file("/proc/uptime", NULL);
+        boot_sd_ensure_file("/proc/meminfo", NULL);
+        boot_sd_ensure_file("/proc/version", NULL);
+        boot_sd_ensure_file("/proc/sched", NULL);
+        
+        // create all required files in /run
+        boot_sd_ensure_file("/run/tty.lock", NULL);
+        boot_sd_ensure_file("/run/scheduler.lock", NULL);
+        boot_sd_ensure_file("/run/pipes/3", NULL);
+        boot_sd_ensure_file("/run/pipes/4", NULL);
+        boot_sd_ensure_file("/run/tasks/1", NULL);
+        boot_sd_ensure_file("/run/tasks/2", NULL);
+        boot_sd_ensure_file("/run/events/queue", NULL);
+        
+        // create all required files in /tmp
+        boot_sd_ensure_file("/tmp/.keep", NULL);
+        
+        // create all required files in /var/log
+        boot_sd_ensure_file("/var/log/kernel.log", NULL);
+        boot_sd_ensure_file("/var/log/scheduler.log", NULL);
+        boot_sd_ensure_file("/var/log/terminal.log", NULL);
+        boot_sd_ensure_file("/var/log/input.log", NULL);
+        boot_sd_ensure_file("/var/log/boot.log", NULL);
+        
+        DEBUG_PRINT("[BOOT] Filesystem structure created successfully\n");
+    } else {
+        DEBUG_PRINT("[BOOT] SD card is not empty, verifying required files exist\n");
+        
+        // verify and create missing directories
+        boot_sd_ensure_directory("/bin");
+        boot_sd_ensure_directory("/dev");
+        boot_sd_ensure_directory("/dev/input");
+        boot_sd_ensure_directory("/dev/pipe");
+        boot_sd_ensure_directory("/etc");
+        boot_sd_ensure_directory("/home");
+        boot_sd_ensure_directory("/home/user");
+        boot_sd_ensure_directory("/home/user/documents");
+        boot_sd_ensure_directory("/proc");
+        boot_sd_ensure_directory("/proc/tasks");
+        boot_sd_ensure_directory("/run");
+        boot_sd_ensure_directory("/run/pipes");
+        boot_sd_ensure_directory("/run/tasks");
+        boot_sd_ensure_directory("/run/events");
+        boot_sd_ensure_directory("/tmp");
+        boot_sd_ensure_directory("/usr");
+        boot_sd_ensure_directory("/usr/bin");
+        boot_sd_ensure_directory("/usr/bin/games");
+        boot_sd_ensure_directory("/usr/bin/demos");
+        boot_sd_ensure_directory("/usr/share");
+        boot_sd_ensure_directory("/usr/share/help");
+        boot_sd_ensure_directory("/usr/share/fonts");
+        boot_sd_ensure_directory("/usr/share/banners");
+        boot_sd_ensure_directory("/var");
+        boot_sd_ensure_directory("/var/log");
+        
+        // verify and create missing files in /bin
+        boot_sd_ensure_file("/bin/sh", NULL);
+        boot_sd_ensure_file("/bin/ls", NULL);
+        boot_sd_ensure_file("/bin/cat", NULL);
+        boot_sd_ensure_file("/bin/echo", NULL);
+        boot_sd_ensure_file("/bin/ps", NULL);
+        boot_sd_ensure_file("/bin/kill", NULL);
+        boot_sd_ensure_file("/bin/clear", NULL);
+        boot_sd_ensure_file("/bin/help", NULL);
+        boot_sd_ensure_file("/bin/reboot", NULL);
+        boot_sd_ensure_file("/bin/nano", NULL);
+        boot_sd_ensure_file("/bin/top", NULL);
+        boot_sd_ensure_file("/bin/uptime", NULL);
+        boot_sd_ensure_file("/bin/meminfo", NULL);
+        boot_sd_ensure_file("/bin/logread", NULL);
+        
+        // verify and create missing files in /dev
+        boot_sd_ensure_file("/dev/tty", NULL);
+        boot_sd_ensure_file("/dev/tty0", NULL);
+        boot_sd_ensure_file("/dev/null", NULL);
+        boot_sd_ensure_file("/dev/input/keyboard", NULL);
+        
+        // verify and create missing files in /etc
+        boot_sd_ensure_file("/etc/passwd", NULL);
+        boot_sd_ensure_file("/etc/shells", NULL);
+        boot_sd_ensure_file("/etc/system.conf", NULL);
+        boot_sd_ensure_file("/etc/tty.conf", NULL);
+        boot_sd_ensure_file("/etc/keymap.conf", NULL);
+        boot_sd_ensure_file("/etc/motd", NULL);
+        
+        // verify and create missing files in /home/user
+        boot_sd_ensure_file("/home/user/.profile", NULL);
+        boot_sd_ensure_file("/home/user/.history", NULL);
+        boot_sd_ensure_file("/home/user/.editorrc", NULL);
+        
+        // verify and create missing files in /proc
+        boot_sd_ensure_file("/proc/uptime", NULL);
+        boot_sd_ensure_file("/proc/meminfo", NULL);
+        boot_sd_ensure_file("/proc/version", NULL);
+        boot_sd_ensure_file("/proc/sched", NULL);
+        
+        // verify and create missing files in /run
+        boot_sd_ensure_file("/run/tty.lock", NULL);
+        boot_sd_ensure_file("/run/scheduler.lock", NULL);
+        boot_sd_ensure_file("/run/pipes/3", NULL);
+        boot_sd_ensure_file("/run/pipes/4", NULL);
+        boot_sd_ensure_file("/run/tasks/1", NULL);
+        boot_sd_ensure_file("/run/tasks/2", NULL);
+        boot_sd_ensure_file("/run/events/queue", NULL);
+        
+        // verify and create missing files in /tmp
+        boot_sd_ensure_file("/tmp/.keep", NULL);
+        
+        // verify and create missing files in /var/log
+        boot_sd_ensure_file("/var/log/kernel.log", NULL);
+        boot_sd_ensure_file("/var/log/scheduler.log", NULL);
+        boot_sd_ensure_file("/var/log/terminal.log", NULL);
+        boot_sd_ensure_file("/var/log/input.log", NULL);
+        boot_sd_ensure_file("/var/log/boot.log", NULL);
+        
+        DEBUG_PRINT("[BOOT] Filesystem structure verified and missing files added\n");
+    }
+    
+    // restore SPI for TFT display now that filesystem initialization is complete
+    boot_sd_restore_tft_spi();
+    
+    return 0;
+#else
+    // PC: no SD card filesystem
     return 0;
 #endif
 }
@@ -620,31 +872,37 @@ void boot_sequence_run(void) {
         boot_halt("SD card mount failed");
     }
     
-    // step 4: Init OS subsystems
+    // step 4: Init SD filesystem
+    result = boot_step("Init SD filesystem", boot_init_sd_filesystem);
+    if (result.status != BOOT_STATUS_OK) {
+        boot_halt("SD filesystem initialization failed");
+    }
+    
+    // step 5: Init OS subsystems
     result = boot_step("Init OS subsystems", boot_init_os_subsystems);
     if (result.status != BOOT_STATUS_OK) {
         boot_halt("OS subsystems initialization failed");
     }
     
-    // step 5: Register commands
+    // step 6: Register commands
     result = boot_step("Register commands", boot_register_commands);
     if (result.status != BOOT_STATUS_OK) {
         boot_halt("Command registration failed");
     }
     
-    // step 6: Init processes
+    // step 7: Init processes
     result = boot_step("Init processes", boot_init_processes);
     if (result.status != BOOT_STATUS_OK) {
         boot_halt("Process initialization failed");
     }
     
-    // step 7: Start event loop
+    // step 8: Start event loop
     result = boot_step("Start event loop", boot_start_event_loop);
     if (result.status != BOOT_STATUS_OK) {
         boot_halt("Event loop start failed");
     }
     
-    // step numero 8: Verify all systems ready
+    // step numero 9: Verify all systems ready
     result = boot_step("Verify systems ready", boot_verify_systems_ready);
     if (result.status != BOOT_STATUS_OK) {
         boot_halt("System verification failed");

@@ -24,7 +24,7 @@ void boot_halt(const char *message);
 void boot_sequence_run(void);
 
 // emergency and desktop functions
-void boot_emergency_tty(void);
+void boot_emergency_tty(const char *failure_reason);
 void boot_start_desktop(void);
 void boot_render_terminal(void);
 int boot_verify_systems_ready(void);
@@ -33,10 +33,20 @@ int boot_verify_systems_ready(void);
 int boot_low_level_bringup(void);
 int boot_init_core_services(void);
 int boot_mount_sd(void);
+int boot_init_sd_filesystem(void);
 int boot_init_os_subsystems(void);
 int boot_register_commands(void);
 int boot_init_processes(void);
 int boot_start_event_loop(void);
+
+// SD card wrapper functions
+int boot_sd_mount(void);
+void boot_sd_restore_tft_spi(void);
+void boot_sd_switch_to_sd_spi(void);
+int boot_sd_available(void);
+int boot_sd_is_directory_empty(const char *path);
+int boot_sd_ensure_directory(const char *path);
+int boot_sd_ensure_file(const char *path, const char *content);
 
 #ifdef __cplusplus
 }
