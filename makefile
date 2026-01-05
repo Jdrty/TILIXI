@@ -227,6 +227,44 @@ sdtest:
 	@echo "(: NOTE: You should see output immediately. If not, try resetting the device."
 	$(PIO) device monitor -e esp32-s3-sdtest --baud 115200
 
+# SD card byte-level test target
+.PHONY: esp32-sdbyte
+
+esp32-sdbyte:
+	@if [ -z "$(PIO)" ]; then \
+		echo "error: PlatformIO not found. install it now!! >:[ "; \
+		exit 1; \
+	fi
+	@echo "building SD card byte test for ESP32-S3..."
+	$(PIO) run -e esp32-s3-sdbyte
+	@echo "uploading SD card byte test to ESP32-S3..."
+	$(PIO) run -e esp32-s3-sdbyte -t upload
+	@echo "(: SD card byte test uploaded"
+	@echo "(: waiting 2 seconds for device to reset..."
+	@sleep 2
+	@echo "(: opening serial monitor (ctrl+c to exit)..."
+	@echo "(: NOTE: You should see output immediately. If not, try resetting the device."
+	$(PIO) device monitor -e esp32-s3-sdbyte --baud 115200
+
+# SD card block-level test target
+.PHONY: esp32-sdblock
+
+esp32-sdblock:
+	@if [ -z "$(PIO)" ]; then \
+		echo "error: PlatformIO not found. install it now!! >:[ "; \
+		exit 1; \
+	fi
+	@echo "building SD card block test for ESP32-S3..."
+	$(PIO) run -e esp32-s3-sdblock
+	@echo "uploading SD card block test to ESP32-S3..."
+	$(PIO) run -e esp32-s3-sdblock -t upload
+	@echo "(: SD card block test uploaded"
+	@echo "(: waiting 2 seconds for device to reset..."
+	@sleep 2
+	@echo "(: opening serial monitor (ctrl+c to exit)..."
+	@echo "(: NOTE: You should see output immediately. If not, try resetting the device."
+	$(PIO) device monitor -e esp32-s3-sdblock --baud 115200
+
 test_tft_restore:	# uneeded, just feel safer with this for some reason, remove later
 	@if [ -f "src/platform/esp32/main_esp32.cpp.bak" ]; then \
 		mv src/platform/esp32/main_esp32.cpp.bak src/platform/esp32/main_esp32.cpp; \
