@@ -299,7 +299,7 @@ vfs_dir_iter_t* vfs_dir_iter_create_node(vfs_node_t *dir_node);
 
 // get next entry in directory
 // iter: iterator handle
-// returns: 1 if entry available, 0 if end of directory, negative error code on error
+// returns: >0 if entry available, 0 if end of directory, <0 if error
 // entry name is stored in iter->current_name (valid until next call or destroy)
 int vfs_dir_iter_next(vfs_dir_iter_t *iter);
 

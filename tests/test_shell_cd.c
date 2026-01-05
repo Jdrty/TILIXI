@@ -3,9 +3,9 @@
 #include <assert.h>
 #include "terminal.h"
 #include "vfs.h"
-#include "shell/builtins.h"
-#include "shell/shell.h"
-#include "shell/shell_codes.h"
+#include "builtins.h"
+#include "shell.h"
+#include "shell_codes.h"
 
 static int test_count = 0;
 static int test_passed = 0;
