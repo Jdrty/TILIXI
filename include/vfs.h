@@ -24,6 +24,7 @@
 // and I'll likely forget a lot of this stuff if I ever revisit this project (⌒_⌒;)
 // if you're just reading through this, much of the comments become redundant once you recognize the convention
 // but I wanted to keep each function readable in isolation.
+#include <sys/types.h>  // this gives ssize_t
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -33,7 +34,6 @@ extern "C" {
 
 // ssize_t definition (signed size_t, used for operations that can return size or error)
 #ifndef _SSIZE_T_DEFINED
-typedef long ssize_t;
 #define _SSIZE_T_DEFINED
 #endif
 
