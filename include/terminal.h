@@ -3,6 +3,7 @@
 #include "terminal_cmd.h"
 #include "debug_helper.h"
 #include "keyboard_core.h"
+#include "vfs.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -50,6 +51,7 @@ typedef struct {
     uint8_t active;     // is terminal in use
     uint8_t input_pos;  // cursor position in input
     terminal_pipe_t pipes[max_pipe_commands];  // pipes for command chaining
+    vfs_node_t *cwd;    // current working directory
     
     // window geometry for display
     int16_t x;          // window x position

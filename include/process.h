@@ -17,6 +17,8 @@
 extern "C" {
 #endif
 
+typedef struct vfs_node vfs_node_t;
+
 // process states
 typedef enum __attribute__((packed)) {
     process_state_ready,
@@ -46,6 +48,7 @@ typedef struct {
     void *args;                          // arguments for entry point
     uint32_t runtime;                    // runtime in ticks/ms
     uint8_t active;                      // is this PCB slot in use
+    vfs_node_t *cwd;                     // current working directory
 #ifdef PLATFORM_ESP32
     TaskHandle_t task_handle;            // FreeRTOS task handle (ESP32 only)
 #endif

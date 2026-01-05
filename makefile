@@ -20,6 +20,8 @@ CFLAGS := -Wall -Wextra -std=c99 $(DEBUG_FLAGS)
 # find all .c files recursively under src/
 # exclude ESP32-specific files for PC builds
 SRC_FILES := $(shell find $(SRC_DIR) -name "*.c" -type f | grep -v platform/esp32 | grep -v filesystem)
+# include VFS stub for tests
+SRC_FILES += $(SRC_DIR)/filesystem/vfs/vfs_stub.c
 
 # filter out platform-specific main files for library build (tests don't need main)
 SRC_LIB := $(filter-out $(SRC_DIR)/platform/pc/main.c, $(SRC_FILES))

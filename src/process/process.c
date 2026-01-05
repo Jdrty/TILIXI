@@ -94,6 +94,7 @@ void init_process_system(void) {
         process_table[i].args           = NULL;
         process_table[i].runtime        = 0;
         process_table[i].active         = 0;
+        process_table[i].cwd            = NULL;
 #ifdef PLATFORM_ESP32
         process_table[i].task_handle    = NULL;
 #endif
@@ -138,6 +139,7 @@ process_id_t process_create(const char *name, void (*entry_point)(void *args),
     process_table[slot_idx].args           = args;
     process_table[slot_idx].runtime        = 0;
     process_table[slot_idx].active         = 1;
+    process_table[slot_idx].cwd            = NULL;
     
 #ifdef PLATFORM_ESP32
     process_table[slot_idx].task_handle    = NULL;

@@ -225,6 +225,14 @@ int vfs_umount(const char *mount_point);
 // entries for operations that don't apply. Check ops once at resolution.
 vfs_node_t* vfs_resolve(const char *path);
 
+// resolve a path relative to a base node
+// base: base directory node (if NULL, resolves from root)
+// path: filesystem path (if starts with '/', resolves from root; else relative to base)
+// returns: pointer to resolved node, or NULL if not found/invalid
+// the returned node is owned by VFS and must be released with vfs_node_release
+// handles '.' and '..' components
+vfs_node_t* vfs_resolve_at(vfs_node_t *base, const char *path);
+
 // resolve parent directory and entry name from a path
 // this is useful for create/remove operations to avoid double parsing and race conditions
 // path: filesystem path
