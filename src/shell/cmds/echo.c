@@ -15,6 +15,7 @@ int cmd_echo(terminal_state *term, int argc, char **argv) {
         return SHELL_ERR;
     }
     
+    // echo accepts any number of arguments (0+), so no validation needed
     for (int i = 1; i < argc; i++) {
         if (argv[i] != NULL) {
             terminal_write_string(term, argv[i]);

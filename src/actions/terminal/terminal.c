@@ -1,6 +1,7 @@
 // main terminal file - includes all terminal sub-modules
 #include "terminal.h"
 #include "terminal_cmd.h"
+#include "builtins.h"
 #include "debug_helper.h"
 #include <string.h>
 #include <stdlib.h>
@@ -94,7 +95,12 @@ void terminal_handle_backspace(terminal_state *term) {
 void terminal_handle_enter(terminal_state *term) {
     if (term == NULL || !term->active) return;
     
-    terminal_newline(term);
+    // parse command first to check if it's empty
+    extern command_tokens_t terminal_parse_command(const char *input);
+    extern void terminal_execute_pipeline(terminal_state *term, command_tokens_t *tokens);
+    extern void terminal_execute_command(terminal_state *term, command_tokens_t *tokens);
+    
+    command_tokens_t tokens = terminal_parse_command(term->input_line);
     
     // add to history
     // theres probably a more unified way to do this that looks a lot better
@@ -116,12 +122,10 @@ void terminal_handle_enter(terminal_state *term) {
         term->history_pos = term->history_count;
     }
     
-    // parse and execute command
-    extern command_tokens_t terminal_parse_command(const char *input);
-    extern void terminal_execute_pipeline(terminal_state *term, command_tokens_t *tokens);
-    extern void terminal_execute_command(terminal_state *term, command_tokens_t *tokens);
+    // move to next line (off the input line) - always do this
+    terminal_newline(term);
     
-    command_tokens_t tokens = terminal_parse_command(term->input_line);
+    // execute command if there is one
     if (tokens.token_count > 0) {
         if (tokens.has_pipe) {
             terminal_execute_pipeline(term, &tokens);
@@ -135,7 +139,13 @@ void terminal_handle_enter(terminal_state *term) {
     term->input_pos = 0;
     
     // show prompt
+    // commands should have added their own newline if they output something
+    // if we're not at the start of a new line (cursor_col > 0), add a newline
+    if (term->cursor_col > 0) {
+        terminal_newline(term);
+    }
     terminal_write_string(term, "$ ");
+    term->cursor_col = 2;  // cursor is after "$ "
 }
 
 void terminal_handle_arrow_up(terminal_state *term) {
@@ -185,18 +195,18 @@ void terminal_execute_command(terminal_state *term, command_tokens_t *tokens) {
     char **argv = (char **)tokens->tokens;
     int argc = tokens->token_count;
     
-    // find and execute command
-    term_cmd *cmd = find_cmd(cmd_name);
+    // find and execute command using builtin system
+    builtin_cmd *cmd = builtins_find(cmd_name);
     if (cmd != NULL) {
-        int result = cmd->handler(argc, argv);
+        int result = cmd->handler(term, argc, argv);
         if (result != 0) {
             char error_msg[64];
             snprintf(error_msg, sizeof(error_msg), "Command failed with code %d\n", result);
             terminal_write_string(term, error_msg);
         }
     } else {
-        char error_msg[64];
-        snprintf(error_msg, sizeof(error_msg), "Command not found: %s\n", cmd_name);
+        char error_msg[128];
+        snprintf(error_msg, sizeof(error_msg), "damocles: unknown command: %s\n", cmd_name);
         terminal_write_string(term, error_msg);
     }
 }

@@ -139,6 +139,16 @@ void keyboard_esp_scan(void) {
         Serial.printf("[KEYBOARD] raw char: '%c' (ascii: %d, hex: 0x%02x)\n", 
                       (c >= 32 && c < 127) ? c : '?', (int)(unsigned char)c, (unsigned char)c);
         
+        // handle CRLF sequence - only process CR (\r), ignore LF (\n)
+        // Both CR (0x0d) and LF (0x0a) map to key_enter, but when Enter is pressed,
+        // the serial monitor sends both. We only want to process ONE of them.
+        // Simple solution: always ignore LF, only process CR
+        if (c == '\n') {
+            Serial.printf("[KEYBOARD] ignoring LF (0x0a) - only processing CR (0x0d) for Enter\n");
+            return;  // ignore LF completely, exit immediately
+        }
+        // CR will be processed normally through the rest of the function
+        
         key_event evt;
         evt.modifiers = 0;
         evt.key = key_none;

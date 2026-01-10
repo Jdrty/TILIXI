@@ -63,7 +63,7 @@ command_tokens_t terminal_parse_command(const char *input) {
     char *saveptr = input_copy;
     char *token = next_token(input_copy, " \t\n", &saveptr);
     
-    while (token != NULL && result.token_count < terminal_cols && storage_idx < terminal_cols) {
+    while (token != NULL && result.token_count < max_command_tokens && storage_idx < max_command_tokens) {
         // check for pipe
         if (strcmp(token, "|") == 0) {
             result.has_pipe = 1;
@@ -71,8 +71,8 @@ command_tokens_t terminal_parse_command(const char *input) {
         } else {
             // copy token to per-instance storage (not static)
             size_t token_len = strlen(token);
-            if (token_len >= terminal_cols) {
-                token_len = terminal_cols - 1;
+            if (token_len >= max_token_length) {
+                token_len = max_token_length - 1;
             }
             memcpy(result.token_storage[storage_idx], token, token_len);
             result.token_storage[storage_idx][token_len] = '\0';

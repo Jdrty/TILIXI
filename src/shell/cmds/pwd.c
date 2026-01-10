@@ -13,11 +13,13 @@ const builtin_cmd cmd_pwd_def = {
 };
 
 int cmd_pwd(terminal_state *term, int argc, char **argv) {
-    (void)argc;
-    (void)argv;
-    
     if (term == NULL) {
         return SHELL_ERR;
+    }
+    
+    if (argc > 1) {
+        shell_error(term, "pwd: too many arguments");
+        return SHELL_EINVAL;
     }
     
     if (term->cwd == NULL) {

@@ -584,8 +584,10 @@ int boot_init_os_subsystems(void) {
 int boot_register_commands(void) {
     // register built-in terminal commands
     #include "terminal_cmd.h"
+    #include "builtins.h"
     
     init_terminal_commands();
+    builtins_init();
     
     return 0;
 }

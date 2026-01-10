@@ -6,6 +6,7 @@
 #include "process.h"
 #include "process_scheduler.h"
 #include "process_script.h"
+#include "builtins.h"
 
 int main(void) {
     // initialize process system
@@ -16,6 +17,7 @@ int main(void) {
     // initialize terminal system
     init_terminal_system();
     init_terminal_commands();
+    builtins_init();
     
     init_actions();
     register_key(mod_shift, key_a, "terminal");

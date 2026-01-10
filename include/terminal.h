@@ -25,9 +25,12 @@ typedef struct {
 } terminal_pipe_t;
 
 // command token structure
+#define max_command_tokens 32
+#define max_token_length 64
+
 typedef struct {
-    char *tokens[terminal_cols];  // array of token pointers
-    char token_storage[terminal_cols][terminal_cols];  // actual storage for token strings
+    char *tokens[max_command_tokens];  // array of token pointers
+    char token_storage[max_command_tokens][max_token_length];  // actual storage for token strings
     uint8_t token_count;
     uint8_t has_pipe;  // 1 if command contains pipe
     uint8_t pipe_pos;  // position of pipe in tokens
