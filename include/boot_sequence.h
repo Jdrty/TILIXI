@@ -30,6 +30,7 @@ int boot_verify_systems_ready(void);
 
 // individual boot step functions (return 0 on success, non-zero on failure)
 int boot_low_level_bringup(void);
+int boot_init_serial(void);
 int boot_init_core_services(void);
 int boot_mount_sd(void);
 int boot_init_os_subsystems(void);
@@ -37,7 +38,9 @@ int boot_register_commands(void);
 int boot_init_processes(void);
 int boot_start_event_loop(void);
 
+// boot completion status
+int boot_is_complete(void);
+
 #ifdef __cplusplus
 }
 #endif
-

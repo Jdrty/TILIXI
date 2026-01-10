@@ -68,6 +68,7 @@ static uint8_t boot_line_y = 20;  // current Y position for boot messages
 static uint8_t boot_line_y = 0;  // unused on PC
 #endif
 static uint8_t boot_initialized = 0;
+static uint8_t boot_complete = 0;  // track if boot sequence has finished
 
 void boot_sequence_init(void) {
     if (boot_initialized) return;
@@ -297,6 +298,24 @@ int boot_low_level_bringup(void) {
     return 0;
 #else
     // PC: no low-level hardware
+    return 0;
+#endif
+}
+
+int boot_init_serial(void) {
+    // initialize serial communication for keyboard input
+    // this ensures serial is ready for post-boot use
+    // note: Serial.begin() is already called in setup() before boot_sequence_run()
+    // this step just marks serial as ready in the boot sequence
+    // actual serial initialization happens in main_esp32.cpp setup()
+    
+#ifdef ARDUINO
+    // serial is already initialized in setup(), just wait a bit for it to stabilize
+    delay_ms(100);  // give serial time to stabilize
+    DEBUG_PRINT("[BOOT] Serial verified and ready for keyboard input\n");
+    return 0;
+#else
+    // PC: serial is stdout/stderr, always available
     return 0;
 #endif
 }
@@ -865,49 +884,55 @@ void boot_sequence_run(void) {
         boot_halt("Low-level bring-up failed");
     }
     
-    // step 2: Init core services
+    // step 2: Init serial communication
+    result = boot_step("Init serial", boot_init_serial);
+    if (result.status != BOOT_STATUS_OK) {
+        boot_halt("Serial initialization failed");
+    }
+    
+    // step 3: Init core services
     result = boot_step("Init core services", boot_init_core_services);
     if (result.status != BOOT_STATUS_OK) {
         boot_halt("Core services initialization failed");
     }
     
-    // step 3: Mount SD card
+    // step 4: Mount SD card
     result = boot_step("Mount micro SD", boot_mount_sd);
     if (result.status != BOOT_STATUS_OK) {
         boot_halt("SD card mount failed");
     }
     
-    // step 4: Init SD filesystem
+    // step 5: Init SD filesystem
     result = boot_step("Init SD filesystem", boot_init_sd_filesystem);
     if (result.status != BOOT_STATUS_OK) {
         boot_halt("SD filesystem initialization failed");
     }
     
-    // step 5: Init OS subsystems
+    // step 6: Init OS subsystems
     result = boot_step("Init OS subsystems", boot_init_os_subsystems);
     if (result.status != BOOT_STATUS_OK) {
         boot_halt("OS subsystems initialization failed");
     }
     
-    // step 6: Register commands
+    // step 7: Register commands
     result = boot_step("Register commands", boot_register_commands);
     if (result.status != BOOT_STATUS_OK) {
         boot_halt("Command registration failed");
     }
     
-    // step 7: Init processes
+    // step 8: Init processes
     result = boot_step("Init processes", boot_init_processes);
     if (result.status != BOOT_STATUS_OK) {
         boot_halt("Process initialization failed");
     }
     
-    // step 8: Start event loop
+    // step 9: Start event loop
     result = boot_step("Start event loop", boot_start_event_loop);
     if (result.status != BOOT_STATUS_OK) {
         boot_halt("Event loop start failed");
     }
     
-    // step numero 9: Verify all systems ready
+    // step 10: Verify all systems ready
     result = boot_step("Verify systems ready", boot_verify_systems_ready);
     if (result.status != BOOT_STATUS_OK) {
         boot_halt("System verification failed");
@@ -922,6 +947,15 @@ void boot_sequence_run(void) {
     
     // start desktop!
     boot_start_desktop();
+    
+    // mark boot as complete - keyboard input can now be active
+    boot_complete = 1;
+    DEBUG_PRINT("[BOOT] Keyboard input now active\n");
 #endif
+}
+
+int boot_is_complete(void) {
+    // return 1 if boot sequence has finished, 0 otherwise
+    return boot_complete;
 }
 

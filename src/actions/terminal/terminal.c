@@ -64,7 +64,11 @@ void terminal_handle_key(terminal_state *term, char key) {
     if (term->input_pos < terminal_cols - 1 && key >= 32 && key < 127) {
         term->input_line[term->input_pos++] = key;
         term->input_line[term->input_pos] = '\0';
-        terminal_write_char(term, key);  // echo character
+        terminal_write_char(term, key);  // echo character to buffer
+        
+        // cursor should be at: prompt "$ " (2 chars) + input_pos
+        // this keeps cursor_col correct for rendering
+        term->cursor_col = 2 + term->input_pos;
     }
 }
 
@@ -72,18 +76,18 @@ void terminal_handle_backspace(terminal_state *term) {
     if (term == NULL || !term->active) return;
     
     if (term->input_pos > 0) {
+        uint16_t pos_to_clear = term->cursor_row * terminal_cols + (2 + term->input_pos - 1);
+        if (pos_to_clear < terminal_buffer_size) {
+            term->buffer[pos_to_clear] = ' ';  // clear the character from buffer
+        }
+        
+        // remove character from input line
         term->input_pos--;
         term->input_line[term->input_pos] = '\0';
-        if (term->cursor_col > 0) {
-            term->cursor_col--;
-            uint16_t pos = term->cursor_row * terminal_cols + term->cursor_col;
-            if (pos < terminal_buffer_size) {
-                term->buffer[pos] = ' ';
-            }
-        }
-        terminal_write_char(term, '\b');  // backspace
-        terminal_write_char(term, ' ');    // erase
-        terminal_write_char(term, '\b');  // backspace again
+        
+        term->cursor_col = 2 + term->input_pos;
+        
+        // don't call terminal_write_char with \b, that writes backspace as a character!!!!!!!
     }
 }
 

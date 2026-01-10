@@ -265,6 +265,25 @@ esp32-sdblock:
 	@echo "(: NOTE: You should see output immediately. If not, try resetting the device."
 	$(PIO) device monitor -e esp32-s3-sdblock --baud 115200
 
+# serial monitor echo test target
+.PHONY: esp32-serial-echo
+
+esp32-serial-echo:
+	@if [ -z "$(PIO)" ]; then \
+		echo "error: PlatformIO not found. install it now!! >:[ "; \
+		exit 1; \
+	fi
+	@echo "building serial echo test for ESP32-S3..."
+	$(PIO) run -e esp32-s3-serial-echo
+	@echo "uploading serial echo test to ESP32-S3..."
+	$(PIO) run -e esp32-s3-serial-echo -t upload
+	@echo "(: serial echo test uploaded"
+	@echo "(: waiting 2 seconds for device to reset..."
+	@sleep 2
+	@echo "(: opening serial monitor (ctrl+c to exit)..."
+	@echo "(: NOTE: Type characters in the serial monitor to see them echoed back"
+	$(PIO) device monitor -e esp32-s3-serial-echo --baud 115200
+
 test_tft_restore:	# uneeded, just feel safer with this for some reason, remove later
 	@if [ -f "src/platform/esp32/main_esp32.cpp.bak" ]; then \
 		mv src/platform/esp32/main_esp32.cpp.bak src/platform/esp32/main_esp32.cpp; \

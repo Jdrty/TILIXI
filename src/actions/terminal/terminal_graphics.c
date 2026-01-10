@@ -81,34 +81,90 @@
             int16_t y_pos = text_y + (row * char_height);
             boot_tft_set_cursor(text_x, y_pos);
             
-            // render one line of text
-            char line[terminal_cols + 1];
-            int16_t line_start = (start_row + row) * terminal_cols;
-            int16_t chars_to_show = max_cols;
-            if (chars_to_show > terminal_cols) chars_to_show = terminal_cols;
+            int16_t current_row = start_row + row;
             
-            for (int16_t col = 0; col < chars_to_show; col++) {
-                if (line_start + col < terminal_buffer_size) {
-                    char c = term->buffer[line_start + col];
-                    if (c < 32 || c >= 127) c = ' ';  // sanitize
-                    line[col] = c;
-                } else {
-                    line[col] = ' ';
+            // check if this is the current input line (where cursor is)
+            if (current_row == term->cursor_row) {
+                // render prompt + input_line for current input line
+                // this ensures the current input line shows exactly what's being typed
+                // first, clear the buffer positions for this line to remove old characters
+                int16_t line_start = current_row * terminal_cols;
+                for (int16_t col = 0; col < terminal_cols; col++) {
+                    if (line_start + col < terminal_buffer_size) {
+                        term->buffer[line_start + col] = ' ';
+                    }
                 }
+                
+                // now write the prompt and input_line to the buffer
+                if (line_start + 0 < terminal_buffer_size) term->buffer[line_start + 0] = '$';
+                if (line_start + 1 < terminal_buffer_size) term->buffer[line_start + 1] = ' ';
+                for (int16_t i = 0; i < term->input_pos && (2 + i) < terminal_cols; i++) {
+                    int16_t buf_pos = line_start + 2 + i;
+                    if (buf_pos < terminal_buffer_size) {
+                        term->buffer[buf_pos] = term->input_line[i];
+                    }
+                }
+                
+                // render the line from buffer (which now has the correct content)
+                char line[terminal_cols + 1];
+                int16_t chars_to_show = max_cols;
+                if (chars_to_show > terminal_cols) chars_to_show = terminal_cols;
+                
+                for (int16_t col = 0; col < chars_to_show; col++) {
+                    if (line_start + col < terminal_buffer_size) {
+                        char c = term->buffer[line_start + col];
+                        if (c < 32 || c >= 127) c = ' ';  // sanitize
+                        line[col] = c;
+                    } else {
+                        line[col] = ' ';
+                    }
+                }
+                line[chars_to_show] = '\0';
+                
+                char display_line[max_cols + 1];
+                strncpy(display_line, line, max_cols);
+                display_line[max_cols] = '\0';
+                boot_tft_print(display_line);
+            } else {
+                // render normal buffer line
+                char line[terminal_cols + 1];
+                int16_t line_start = current_row * terminal_cols;
+                int16_t chars_to_show = max_cols;
+                if (chars_to_show > terminal_cols) chars_to_show = terminal_cols;
+                
+                for (int16_t col = 0; col < chars_to_show; col++) {
+                    if (line_start + col < terminal_buffer_size) {
+                        char c = term->buffer[line_start + col];
+                        if (c < 32 || c >= 127) c = ' ';  // sanitize
+                        line[col] = c;
+                    } else {
+                        line[col] = ' ';
+                    }
+                }
+                line[chars_to_show] = '\0';
+                
+                // print line (truncate if needed)
+                char display_line[max_cols + 1];
+                strncpy(display_line, line, max_cols);
+                display_line[max_cols] = '\0';
+                boot_tft_print(display_line);
             }
-            line[chars_to_show] = '\0';
-            
-            // print line (truncate if needed)
-            char display_line[max_cols + 1];
-            strncpy(display_line, line, max_cols);
-            display_line[max_cols] = '\0';
-            boot_tft_print(display_line);
         }
         
         // draw cursor at current position
-        int16_t cursor_x = text_x + (term->cursor_col * char_width);
+        // for the input line, cursor should be after prompt "$ " (2 chars) plus input_line length
+        int16_t cursor_col_display = term->cursor_col;
+        
+        // if cursor is on the current input line (within visible range), calculate based on input_pos
+        if (term->cursor_row >= start_row && term->cursor_row < start_row + max_rows) {
+            // for simplicity, if cursor_row is the last row or matches the input line, use input_pos
+            cursor_col_display = 2 + term->input_pos;  // "$ " is 2 chars, then input_pos
+        }
+        
+        int16_t cursor_x = text_x + (cursor_col_display * char_width);
         int16_t cursor_y = text_y + ((term->cursor_row - start_row) * char_height);
-        if (cursor_y >= text_y && cursor_y < text_y + (max_rows * char_height)) {
+        if (cursor_y >= text_y && cursor_y < text_y + (max_rows * char_height) && 
+            cursor_x >= text_x && cursor_x < text_x + (max_cols * char_width)) {
             boot_tft_set_cursor(cursor_x, cursor_y);
             boot_tft_print("_");
         }

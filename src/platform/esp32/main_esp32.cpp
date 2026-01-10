@@ -43,8 +43,11 @@
         // other processes run as separate FreeRTOS tasks with preemptive scheduling
         // i'm so goated
         
-        // scan for keyboard input from serial monitor
-        keyboard_esp_scan();
+        // only scan for keyboard input from serial monitor after boot is complete
+        // this ensures keys are only processed when terminal is ready
+        if (boot_is_complete()) {
+            keyboard_esp_scan();
+        }
         
         // small delay to prevent CPU spinning in the main loop
         // note: This doesn't affect process scheduling, FreeRTOS handles that
