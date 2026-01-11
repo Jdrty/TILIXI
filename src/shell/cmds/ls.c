@@ -98,6 +98,7 @@ int cmd_ls(terminal_state *term, int argc, char **argv) {
         }
     }
     
+    // always print a newline after listing (even if directory is empty)
     terminal_newline(term);
     
     vfs_dir_iter_destroy(iter);

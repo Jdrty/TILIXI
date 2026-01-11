@@ -566,16 +566,19 @@ int boot_init_os_subsystems(void) {
     // - Scheduler
     // - Script system
     // - Terminal system
+    // - VFS (Virtual File System)
     
     #include "process.h"
     #include "process_scheduler.h"
     #include "process_script.h"
     #include "terminal.h"
+    #include "vfs.h"
     
     init_process_system();
     init_scheduler();
     init_script_system();
     init_terminal_system();
+    vfs_init();
     
     return 0;
     // need checks later TODO

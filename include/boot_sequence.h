@@ -38,6 +38,15 @@ int boot_register_commands(void);
 int boot_init_processes(void);
 int boot_start_event_loop(void);
 
+// SD card wrapper functions
+int boot_sd_mount(void);
+void boot_sd_restore_tft_spi(void);
+void boot_sd_switch_to_sd_spi(void);
+int boot_sd_available(void);
+int boot_sd_is_directory_empty(const char *path);
+int boot_sd_ensure_directory(const char *path);
+int boot_sd_ensure_file(const char *path, const char *content);
+
 // boot completion status
 int boot_is_complete(void);
 

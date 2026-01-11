@@ -1,4 +1,5 @@
 #include "terminal.h"
+#include "vfs.h"
 #include "debug_helper.h"
 #include <string.h>
 
@@ -114,7 +115,9 @@ void new_terminal(void) {
     new_term->input_pos = 0;
     new_term->history_count = 0;
     new_term->history_pos = 0;
-    new_term->cwd = NULL;
+    
+    // set initial working directory to root
+    new_term->cwd = vfs_resolve("/");
     memset(new_term->buffer, ' ', terminal_buffer_size);
     memset(new_term->input_line, 0, terminal_cols);
     

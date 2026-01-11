@@ -1,39 +1,89 @@
 // temp file just needed for good test
+// redundant now, got real vfs working
 
 #include "vfs.h"
 #include <stdlib.h>
 #include <string.h>
 
+// Directory structure:
+// / (root)
+//   - file1.txt
+//   - file2.txt
+//   - dir1/
+//     - file3.txt
+//     - subdir/
+//       - file4.txt
+
+// Root directory entries
+static char root_entries[][16] = {"file1.txt", "file2.txt", "dir1"};
+#define ROOT_ENTRY_COUNT 3
+
+// dir1 entries
+static char dir1_entries[][16] = {"file3.txt", "subdir"};
+#define DIR1_ENTRY_COUNT 2
+
+// subdir entries
+static char subdir_entries[][16] = {"file4.txt"};
+#define SUBDIR_ENTRY_COUNT 1
+
+// Iterator state structure
+typedef struct {
+    vfs_node_t *dir_node;
+    int entry_idx;
+    char (*entries)[16];
+    int entry_count;
+} stub_iter_state_t;
+
+static stub_iter_state_t stub_iter_state = {0};
+
 static vfs_dir_iter_t stub_iter = {0};
-static char stub_entry_names[][16] = {"file1.txt", "file2.txt", "dir1"};
-static int stub_entry_idx = 0;
 
 static vfs_dir_iter_t* stub_dir_iter_create(vfs_node_t *dir_node) {
     if (dir_node == NULL || dir_node->type != VFS_NODE_DIR) {
         return NULL;
     }
     
+    void *dir_id = dir_node->backend_data;
+    
+    stub_iter_state.dir_node = dir_node;
+    stub_iter_state.entry_idx = 0;
+    
+    if (dir_id == (void*)1) {
+        // dir1
+        stub_iter_state.entries = dir1_entries;
+        stub_iter_state.entry_count = DIR1_ENTRY_COUNT;
+    } else if (dir_id == (void*)2) {
+        // subdir
+        stub_iter_state.entries = subdir_entries;
+        stub_iter_state.entry_count = SUBDIR_ENTRY_COUNT;
+    } else {
+        // root (default)
+        stub_iter_state.entries = root_entries;
+        stub_iter_state.entry_count = ROOT_ENTRY_COUNT;
+    }
+    
     stub_iter.dir_node = dir_node;
-    stub_iter.backend_iter = NULL;
+    stub_iter.backend_iter = &stub_iter_state;
     stub_iter.current_name = NULL;
     stub_iter.name_len = 0;
-    stub_entry_idx = 0;
     
     return &stub_iter;
 }
 
 static int stub_dir_iter_next(vfs_dir_iter_t *iter) {
-    if (iter == NULL) {
+    if (iter == NULL || iter->backend_iter == NULL) {
         return -1;
     }
     
-    if (stub_entry_idx >= 3) {
-        return 0;
+    stub_iter_state_t *state = (stub_iter_state_t *)iter->backend_iter;
+    
+    if (state->entry_idx >= state->entry_count) {
+        return 0;  // end of directory
     }
     
-    iter->current_name = stub_entry_names[stub_entry_idx];
-    iter->name_len = strlen(stub_entry_names[stub_entry_idx]);
-    stub_entry_idx++;
+    iter->current_name = state->entries[state->entry_idx];
+    iter->name_len = strlen(state->entries[state->entry_idx]);
+    state->entry_idx++;
     
     return 1;
 }
@@ -47,6 +97,11 @@ static void stub_dir_iter_destroy(vfs_dir_iter_t *iter) {
     iter->backend_iter = NULL;
     iter->current_name = NULL;
     iter->name_len = 0;
+    
+    stub_iter_state.dir_node = NULL;
+    stub_iter_state.entry_idx = 0;
+    stub_iter_state.entries = NULL;
+    stub_iter_state.entry_count = 0;
 }
 
 static const vfs_ops_t root_ops = {
@@ -64,14 +119,35 @@ static const vfs_ops_t root_ops = {
     .dir_remove = NULL
 };
 
+// directory nodes
 static vfs_node_t root_node = {
     .type = VFS_NODE_DIR,
     .ops = &root_ops,
-    .backend_data = NULL,
+    .backend_data = NULL,  // root is identified by NULL
     .is_readonly = 0,
     .is_hidden = 0,
     .reserved = 0,
     .refcount = 1
+};
+
+static vfs_node_t dir1_node = {
+    .type = VFS_NODE_DIR,
+    .ops = &root_ops,  // same ops for all directories
+    .backend_data = (void*)1,  // dir1 identifier
+    .is_readonly = 0,
+    .is_hidden = 0,
+    .reserved = 0,
+    .refcount = 0
+};
+
+static vfs_node_t subdir_node = {
+    .type = VFS_NODE_DIR,
+    .ops = &root_ops,  // same ops for all directories
+    .backend_data = (void*)2,  // subdir identifier
+    .is_readonly = 0,
+    .is_hidden = 0,
+    .reserved = 0,
+    .refcount = 0
 };
 
 int vfs_init(void) {
@@ -86,6 +162,17 @@ vfs_node_t* vfs_resolve(const char *path) {
     if (strcmp(path, "/") == 0) {
         root_node.refcount++;
         return &root_node;
+    }
+    
+    // Handle absolute paths
+    if (strcmp(path, "/dir1") == 0) {
+        dir1_node.refcount++;
+        return &dir1_node;
+    }
+    
+    if (strcmp(path, "/dir1/subdir") == 0) {
+        subdir_node.refcount++;
+        return &subdir_node;
     }
     
     return NULL;
@@ -110,8 +197,35 @@ vfs_node_t* vfs_resolve_at(vfs_node_t *base, const char *path) {
     }
     
     if (strcmp(path, "..") == 0) {
-        root_node.refcount++;
-        return &root_node;
+        // Determine parent based on current directory
+        if (base->backend_data == (void*)2) {
+            // subdir -> parent is dir1
+            dir1_node.refcount++;
+            return &dir1_node;
+        } else if (base->backend_data == (void*)1) {
+            // dir1 -> parent is root
+            root_node.refcount++;
+            return &root_node;
+        } else {
+            // root -> parent is root (root has no parent)
+            root_node.refcount++;
+            return &root_node;
+        }
+    }
+    
+    // Handle subdirectory names
+    if (base->backend_data == NULL) {
+        // we're in root, check for "dir1"
+        if (strcmp(path, "dir1") == 0) {
+            dir1_node.refcount++;
+            return &dir1_node;
+        }
+    } else if (base->backend_data == (void*)1) {
+        // we're in dir1, check for "subdir"
+        if (strcmp(path, "subdir") == 0) {
+            subdir_node.refcount++;
+            return &subdir_node;
+        }
     }
     
     return NULL;
