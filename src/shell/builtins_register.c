@@ -8,6 +8,7 @@ extern const builtin_cmd cmd_touch_def;
 extern const builtin_cmd cmd_mkdir_def;
 extern const builtin_cmd cmd_rm_def;
 extern const builtin_cmd cmd_rmdir_def;
+extern const builtin_cmd cmd_mv_def;
 extern const builtin_cmd cmd_echo_def;
 extern const builtin_cmd cmd_kill_def;
 extern const builtin_cmd cmd_shutdown_def;
@@ -24,6 +25,7 @@ void builtins_register_all(void) {
     builtins_register_descriptor(&cmd_mkdir_def);
     builtins_register_descriptor(&cmd_rm_def);
     builtins_register_descriptor(&cmd_rmdir_def);
+    builtins_register_descriptor(&cmd_mv_def);
     builtins_register_descriptor(&cmd_echo_def);
     builtins_register_descriptor(&cmd_kill_def);
     builtins_register_descriptor(&cmd_shutdown_def);

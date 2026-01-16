@@ -332,6 +332,15 @@ int vfs_dir_remove(const char *dir_path, const char *name);
 // returns: VFS_EOK on success, error code on failure
 int vfs_dir_remove_node(vfs_node_t *dir_node, const char *name);
 
+// rename/move entry between directories using resolved nodes
+// old_dir: source parent directory node
+// old_name: source entry name (not full path)
+// new_dir: destination parent directory node
+// new_name: destination entry name (not full path)
+// returns: VFS_EOK on success, error code on failure
+int vfs_dir_rename_node(vfs_node_t *old_dir, const char *old_name,
+                        vfs_node_t *new_dir, const char *new_name);
+
 #ifdef __cplusplus
 }
 #endif

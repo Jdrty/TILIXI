@@ -299,3 +299,12 @@ int vfs_dir_remove_node(vfs_node_t *dir_node, const char *name) {
     return dir_node->ops->dir_remove(dir_node, name);
 }
 
+int vfs_dir_rename_node(vfs_node_t *old_dir, const char *old_name,
+                        vfs_node_t *new_dir, const char *new_name) {
+    if (old_dir == NULL || new_dir == NULL || old_name == NULL || new_name == NULL) {
+        return VFS_EINVAL;
+    }
+    
+    return VFS_EPERM;  // operation not supported in stub
+}
+

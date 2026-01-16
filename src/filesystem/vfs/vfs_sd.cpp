@@ -253,15 +253,15 @@ static int sd_dir_remove(vfs_node_t *dir_node, const char *name) {
     
     boot_sd_switch_to_sd_spi();
     
+    char full_path[MAX_PATH_LEN];
+    size_t name_len = strlen(name);
     const char *dir_path = (const char*)dir_node->backend_data;
     if (dir_path == NULL) {
         dir_path = "/";
     }
     
-    char full_path[MAX_PATH_LEN];
     size_t dir_path_len = strlen(dir_path);
-    
-    if (dir_path_len + strlen(name) + 2 >= MAX_PATH_LEN) {
+    if (dir_path_len + name_len + 2 >= MAX_PATH_LEN) {
         boot_sd_restore_tft_spi();
         return VFS_ENAMETOOLONG;
     }
@@ -273,7 +273,7 @@ static int sd_dir_remove(vfs_node_t *dir_node, const char *name) {
     }
     
     strncpy(full_path + dir_path_len, name, MAX_PATH_LEN - dir_path_len - 1);
-    full_path[dir_path_len + strlen(name)] = '\0';
+    full_path[dir_path_len + name_len] = '\0';
     
     if (!SD.exists(full_path)) {
         boot_sd_restore_tft_spi();
@@ -296,6 +296,57 @@ static int sd_dir_remove(vfs_node_t *dir_node, const char *name) {
         success = SD.remove(full_path);
     }
     
+    boot_sd_restore_tft_spi();
+    
+    return success ? VFS_EOK : VFS_EPERM;
+}
+
+static int sd_dir_rename(vfs_node_t *old_dir, const char *old_name,
+                         vfs_node_t *new_dir, const char *new_name) {
+    if (old_dir == NULL || new_dir == NULL || old_name == NULL || new_name == NULL) {
+        return VFS_EINVAL;
+    }
+    
+    const char *old_dir_path = (const char*)old_dir->backend_data;
+    if (old_dir_path == NULL) {
+        old_dir_path = "/";
+    }
+    const char *new_dir_path = (const char*)new_dir->backend_data;
+    if (new_dir_path == NULL) {
+        new_dir_path = "/";
+    }
+    
+    size_t old_dir_len = strlen(old_dir_path);
+    size_t new_dir_len = strlen(new_dir_path);
+    size_t old_name_len = strlen(old_name);
+    size_t new_name_len = strlen(new_name);
+    
+    if (old_dir_len + old_name_len + 2 >= MAX_PATH_LEN ||
+        new_dir_len + new_name_len + 2 >= MAX_PATH_LEN) {
+        return VFS_ENAMETOOLONG;
+    }
+    
+    char old_full[MAX_PATH_LEN];
+    char new_full[MAX_PATH_LEN];
+    
+    strncpy(old_full, old_dir_path, MAX_PATH_LEN - 1);
+    if (old_dir_len > 0 && old_dir_path[old_dir_len - 1] != '/') {
+        old_full[old_dir_len] = '/';
+        old_dir_len++;
+    }
+    strncpy(old_full + old_dir_len, old_name, MAX_PATH_LEN - old_dir_len - 1);
+    old_full[old_dir_len + old_name_len] = '\0';
+    
+    strncpy(new_full, new_dir_path, MAX_PATH_LEN - 1);
+    if (new_dir_len > 0 && new_dir_path[new_dir_len - 1] != '/') {
+        new_full[new_dir_len] = '/';
+        new_dir_len++;
+    }
+    strncpy(new_full + new_dir_len, new_name, MAX_PATH_LEN - new_dir_len - 1);
+    new_full[new_dir_len + new_name_len] = '\0';
+    
+    boot_sd_switch_to_sd_spi();
+    bool success = SD.rename(old_full, new_full);
     boot_sd_restore_tft_spi();
     
     return success ? VFS_EOK : VFS_EPERM;
@@ -587,6 +638,23 @@ int vfs_dir_remove_node(vfs_node_t *dir_node, const char *name) {
     }
     
     return dir_node->ops->dir_remove(dir_node, name);
+}
+
+int vfs_dir_rename_node(vfs_node_t *old_dir, const char *old_name,
+                        vfs_node_t *new_dir, const char *new_name) {
+    if (old_dir == NULL || new_dir == NULL || old_name == NULL || new_name == NULL) {
+        return VFS_EINVAL;
+    }
+    
+    if (old_dir->ops == NULL || old_dir->ops != new_dir->ops) {
+        return VFS_EPERM;
+    }
+    
+    if (old_dir->ops->dir_remove == NULL) {
+        return VFS_EPERM;
+    }
+    
+    return sd_dir_rename(old_dir, old_name, new_dir, new_name);
 }
 
 #endif  // ARDUINO

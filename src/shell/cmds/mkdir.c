@@ -27,6 +27,14 @@ static int has_non_slash(const char *str) {
     return 0;
 }
 
+static int name_has_extension(const char *name) {
+    if (name == NULL || name[0] == '\0') {
+        return 0;
+    }
+    const char *dot = strrchr(name, '.');
+    return (dot != NULL && dot != name);
+}
+
 static int mkdir_single(terminal_state *term, const char *path, int parents) {
     if (path == NULL || path[0] == '\0') {
         shell_error(term, "mkdir: missing operand");
@@ -139,6 +147,13 @@ static int mkdir_single(terminal_state *term, const char *path, int parents) {
                 return SHELL_ENOENT;
             }
             
+            if (name_has_extension(cursor)) {
+                free(path_copy);
+                vfs_node_release(current);
+                shell_error(term, "mkdir: %s: invalid directory name", cursor);
+                return SHELL_EINVAL;
+            }
+
             vfs_node_t *created = vfs_dir_create_node(current, cursor, VFS_NODE_DIR);
             if (created == NULL) {
                 free(path_copy);
