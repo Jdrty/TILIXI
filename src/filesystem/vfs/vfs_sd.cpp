@@ -177,7 +177,7 @@ static void sd_dir_iter_destroy(vfs_dir_iter_t *iter) {
     // note: iter structure itself is freed by vfs_dir_iter_destroy wrapper
 }
 
-// Forward declaration
+// forward declaration
 static vfs_node_t* create_sd_node(const char *path, vfs_node_type_t type);
 
 // VFS directory create implementation for SD card
@@ -228,8 +228,7 @@ static vfs_node_t* sd_dir_create(vfs_node_t *dir_node, const char *name, vfs_nod
         success = SD.mkdir(full_path);
     } else if (type == VFS_NODE_FILE) {
         // create file - open in write mode and close it
-        // The SD library creates the file entry when you open for writing
-        // This matches the pattern used in boot_sd_ensure_file
+        // the SD library creates the file entry when you open for writing
         File f = SD.open(full_path, FILE_WRITE);
         if (f) {
             f.close();
@@ -270,7 +269,7 @@ static const char* resolve_path_to_node_cache(vfs_node_t *base, const char *path
         return NULL;
     }
     
-    // Absolute path
+    // abs path
     if (path[0] == '/') {
         if (strlen(path) >= MAX_PATH_LEN) {
             return NULL;
