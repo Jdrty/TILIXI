@@ -20,8 +20,8 @@ int main(void) {
     builtins_init();
     
     init_actions();
-    register_key(mod_shift, key_a, "terminal");
-    register_key(mod_shift, key_d, "close_terminal");
+    register_key(mod_ctrl, key_enter, "terminal");
+    register_key(mod_ctrl, key_q, "close_terminal");
     sdlread();
     return 0;
 }

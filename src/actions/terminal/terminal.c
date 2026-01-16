@@ -139,6 +139,12 @@ void terminal_handle_enter(terminal_state *term) {
     memset(term->input_line, 0, terminal_cols);
     term->input_pos = 0;
     
+    // if a fullscreen app is active (e.g. nano), don't draw the shell prompt
+    extern int nano_is_active(void);
+    if (nano_is_active()) {
+        return;
+    }
+    
     // show prompt
     // commands should have added their own newline if they output something
     // if we're not at the start of a new line (cursor_col > 0), add a newline

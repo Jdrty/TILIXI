@@ -31,8 +31,8 @@
         init_actions();
         
         // register hotkeys
-        register_key(mod_shift, key_a, "terminal");
-        register_key(mod_shift, key_d, "close_terminal");
+        register_key(mod_ctrl, key_enter, "terminal");
+        register_key(mod_ctrl, key_q, "close_terminal");
         // add more hotkeys as needed
     }
     

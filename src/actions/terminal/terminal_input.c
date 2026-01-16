@@ -6,6 +6,9 @@
 #include "keyboard_core.h"
 #include "debug_helper.h"
 
+extern int nano_is_active(void);
+extern void nano_handle_key_event(key_event evt);
+
 // convert key_code to character (for terminal input)
 static char key_to_char(key_code key, uint8_t modifiers) {
     char base_char = 0;
@@ -103,6 +106,11 @@ void terminal_handle_key_event(key_event evt) {
 #ifndef ARDUINO
         DEBUG_PRINT("[TERMINAL_INPUT] terminal_handle_key_event: terminal not active\n");
 #endif
+        return;
+    }
+    
+    if (nano_is_active()) {
+        nano_handle_key_event(evt);
         return;
     }
     

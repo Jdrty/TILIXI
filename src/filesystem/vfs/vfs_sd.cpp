@@ -353,14 +353,129 @@ static int sd_dir_rename(vfs_node_t *old_dir, const char *old_name,
 }
 
 // VFS operations table for SD filesystem
+static void* sd_open(vfs_node_t *node, int flags) {
+    if (node == NULL || node->type != VFS_NODE_FILE || node->backend_data == NULL) {
+        return NULL;
+    }
+    
+    const char *path = (const char*)node->backend_data;
+    if (path[0] == '\0') {
+        return NULL;
+    }
+    
+    boot_sd_switch_to_sd_spi();
+    
+    const char *mode = (flags & (VFS_O_WRITE | VFS_O_CREATE)) ? FILE_WRITE : FILE_READ;
+    bool create = (flags & VFS_O_CREATE) != 0;
+    
+    if ((flags & VFS_O_TRUNC) && (flags & (VFS_O_WRITE | VFS_O_CREATE))) {
+        if (SD.exists(path)) {
+            SD.remove(path);
+        }
+        create = true;
+    }
+    
+    File *handle = new File(SD.open(path, mode, create));
+    if (handle == NULL || !(*handle)) {
+        if (handle != NULL) {
+            delete handle;
+        }
+        boot_sd_restore_tft_spi();
+        return NULL;
+    }
+    
+    if (flags & VFS_O_APPEND) {
+        handle->seek(handle->size());
+    } else if (flags & VFS_O_WRITE) {
+        handle->seek(0);
+    }
+    
+    boot_sd_restore_tft_spi();
+    return handle;
+}
+
+static int sd_close(void *handle) {
+    if (handle == NULL) {
+        return VFS_EINVAL;
+    }
+    File *file = (File*)handle;
+    boot_sd_switch_to_sd_spi();
+    file->close();
+    boot_sd_restore_tft_spi();
+    delete file;
+    return VFS_EOK;
+}
+
+static ssize_t sd_read(void *handle, void *buf, size_t size) {
+    if (handle == NULL || buf == NULL) {
+        return VFS_EINVAL;
+    }
+    File *file = (File*)handle;
+    boot_sd_switch_to_sd_spi();
+    int read_bytes = file->read((uint8_t*)buf, size);
+    boot_sd_restore_tft_spi();
+    return read_bytes < 0 ? VFS_EIO : read_bytes;
+}
+
+static ssize_t sd_write(void *handle, const void *buf, size_t size) {
+    if (handle == NULL || buf == NULL) {
+        return VFS_EINVAL;
+    }
+    File *file = (File*)handle;
+    boot_sd_switch_to_sd_spi();
+    size_t written = file->write((const uint8_t*)buf, size);
+    file->flush();
+    boot_sd_restore_tft_spi();
+    return written == size ? (ssize_t)written : VFS_EIO;
+}
+
+static ssize_t sd_size(vfs_node_t *node) {
+    if (node == NULL || node->backend_data == NULL) {
+        return VFS_EINVAL;
+    }
+    const char *path = (const char*)node->backend_data;
+    boot_sd_switch_to_sd_spi();
+    File f = SD.open(path, FILE_READ);
+    if (!f) {
+        boot_sd_restore_tft_spi();
+        return VFS_EIO;
+    }
+    size_t size = f.size();
+    f.close();
+    boot_sd_restore_tft_spi();
+    return (ssize_t)size;
+}
+
+static int sd_seek(void *handle, size_t offset) {
+    if (handle == NULL) {
+        return VFS_EINVAL;
+    }
+    File *file = (File*)handle;
+    boot_sd_switch_to_sd_spi();
+    bool ok = file->seek(offset);
+    boot_sd_restore_tft_spi();
+    return ok ? VFS_EOK : VFS_EIO;
+}
+
+static ssize_t sd_tell(void *handle) {
+    if (handle == NULL) {
+        return VFS_EINVAL;
+    }
+    File *file = (File*)handle;
+    boot_sd_switch_to_sd_spi();
+    size_t pos = file->position();
+    boot_sd_restore_tft_spi();
+    return (ssize_t)pos;
+}
+
 static const vfs_ops_t sd_ops = {
-    .open = NULL,  // TODO: implement file operations
-    .close = NULL,
-    .read = NULL,
-    .write = NULL,
-    .size = NULL,
-    .seek = NULL,
-    .tell = NULL,
+    .open = sd_open,
+    .close = sd_close,
+    .read = sd_read,
+    .write = sd_write,
+    .size = sd_size,
+    .seek = sd_seek,
+    .tell = sd_tell,
     .dir_iter_create = sd_dir_iter_create,
     .dir_iter_next = sd_dir_iter_next,
     .dir_iter_destroy = sd_dir_iter_destroy,
@@ -655,6 +770,119 @@ int vfs_dir_rename_node(vfs_node_t *old_dir, const char *old_name,
     }
     
     return sd_dir_rename(old_dir, old_name, new_dir, new_name);
+}
+
+vfs_file_t* vfs_open(const char *path, int flags) {
+    vfs_node_t *node = vfs_resolve(path);
+    if (node == NULL) {
+        return NULL;
+    }
+    
+    vfs_file_t *file = vfs_open_node(node, flags);
+    vfs_node_release(node);
+    return file;
+}
+
+vfs_file_t* vfs_open_node(vfs_node_t *node, int flags) {
+    if (node == NULL || node->ops == NULL || node->ops->open == NULL) {
+        return NULL;
+    }
+    
+    void *handle = node->ops->open(node, flags);
+    if (handle == NULL) {
+        return NULL;
+    }
+    
+    vfs_file_t *file = (vfs_file_t*)malloc(sizeof(vfs_file_t));
+    if (file == NULL) {
+        if (node->ops->close != NULL) {
+            node->ops->close(handle);
+        }
+        return NULL;
+    }
+    
+    node->refcount++;
+    file->node = node;
+    file->handle = handle;
+    file->position = 0;
+    return file;
+}
+
+int vfs_close(vfs_file_t *file) {
+    if (file == NULL || file->node == NULL || file->node->ops == NULL) {
+        return VFS_EINVAL;
+    }
+    
+    int result = VFS_EOK;
+    if (file->node->ops->close != NULL) {
+        result = file->node->ops->close(file->handle);
+    }
+    vfs_node_release(file->node);
+    free(file);
+    return result;
+}
+
+ssize_t vfs_read(vfs_file_t *file, void *buf, size_t size) {
+    if (file == NULL || file->node == NULL || file->node->ops == NULL ||
+        file->node->ops->read == NULL) {
+        return VFS_EINVAL;
+    }
+    
+    ssize_t result = file->node->ops->read(file->handle, buf, size);
+    if (result > 0) {
+        file->position += (size_t)result;
+    }
+    return result;
+}
+
+ssize_t vfs_write(vfs_file_t *file, const void *buf, size_t size) {
+    if (file == NULL || file->node == NULL || file->node->ops == NULL ||
+        file->node->ops->write == NULL) {
+        return VFS_EINVAL;
+    }
+    
+    ssize_t result = file->node->ops->write(file->handle, buf, size);
+    if (result > 0) {
+        file->position += (size_t)result;
+    }
+    return result;
+}
+
+ssize_t vfs_size(const char *path) {
+    vfs_node_t *node = vfs_resolve(path);
+    if (node == NULL) {
+        return VFS_ENOENT;
+    }
+    ssize_t size = vfs_size_node(node);
+    vfs_node_release(node);
+    return size;
+}
+
+ssize_t vfs_size_node(vfs_node_t *node) {
+    if (node == NULL || node->ops == NULL || node->ops->size == NULL) {
+        return VFS_EINVAL;
+    }
+    return node->ops->size(node);
+}
+
+int vfs_seek(vfs_file_t *file, size_t offset) {
+    if (file == NULL || file->node == NULL || file->node->ops == NULL ||
+        file->node->ops->seek == NULL) {
+        return VFS_EINVAL;
+    }
+    int result = file->node->ops->seek(file->handle, offset);
+    if (result == VFS_EOK) {
+        file->position = offset;
+    }
+    return result;
+}
+
+ssize_t vfs_tell(vfs_file_t *file) {
+    if (file == NULL || file->node == NULL || file->node->ops == NULL ||
+        file->node->ops->tell == NULL) {
+        return VFS_EINVAL;
+    }
+    return file->node->ops->tell(file->handle);
 }
 
 #endif  // ARDUINO

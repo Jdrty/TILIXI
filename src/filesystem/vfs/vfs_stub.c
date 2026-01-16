@@ -308,3 +308,55 @@ int vfs_dir_rename_node(vfs_node_t *old_dir, const char *old_name,
     return VFS_EPERM;  // operation not supported in stub
 }
 
+vfs_file_t* vfs_open(const char *path, int flags) {
+    (void)path;
+    (void)flags;
+    return NULL;
+}
+
+vfs_file_t* vfs_open_node(vfs_node_t *node, int flags) {
+    (void)node;
+    (void)flags;
+    return NULL;
+}
+
+int vfs_close(vfs_file_t *file) {
+    (void)file;
+    return VFS_EPERM;
+}
+
+ssize_t vfs_read(vfs_file_t *file, void *buf, size_t size) {
+    (void)file;
+    (void)buf;
+    (void)size;
+    return VFS_EPERM;
+}
+
+ssize_t vfs_write(vfs_file_t *file, const void *buf, size_t size) {
+    (void)file;
+    (void)buf;
+    (void)size;
+    return VFS_EPERM;
+}
+
+ssize_t vfs_size(const char *path) {
+    (void)path;
+    return VFS_EPERM;
+}
+
+ssize_t vfs_size_node(vfs_node_t *node) {
+    (void)node;
+    return VFS_EPERM;
+}
+
+int vfs_seek(vfs_file_t *file, size_t offset) {
+    (void)file;
+    (void)offset;
+    return VFS_EPERM;
+}
+
+ssize_t vfs_tell(vfs_file_t *file) {
+    (void)file;
+    return VFS_EPERM;
+}
+
