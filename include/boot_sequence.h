@@ -33,6 +33,7 @@ int boot_low_level_bringup(void);
 int boot_init_serial(void);
 int boot_init_core_services(void);
 int boot_mount_sd(void);
+int boot_init_sd_filesystem(void);
 int boot_init_os_subsystems(void);
 int boot_register_commands(void);
 int boot_init_processes(void);

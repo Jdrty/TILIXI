@@ -35,3 +35,6 @@ int cmd_clear(terminal_state *term, int argc, char **argv) {
     return SHELL_OK;
 }
 
+
+
+

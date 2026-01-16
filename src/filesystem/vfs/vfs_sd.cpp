@@ -112,21 +112,35 @@ static int sd_dir_iter_next(vfs_dir_iter_t *iter) {
     }
     
     // get entry name
-    const char *name = entry.name();
-    if (name == NULL) {
+    char name_buf[MAX_ENTRY_NAME_LEN];
+    const char *raw_name = entry.name();
+    if (raw_name == NULL) {
         entry.close();
         return -1;
     }
     
+    // copy the raw name to a local buffer before closing the entry
+    strncpy(name_buf, raw_name, MAX_ENTRY_NAME_LEN - 1);
+    name_buf[MAX_ENTRY_NAME_LEN - 1] = '\0';
+    
+    // close the entry now - the name is safely copied
+    entry.close();
+    
     // extract just the filename (SD library sometimes returns full path)
-    const char *filename = strrchr(name, '/');
+    // find the last '/' to get just the filename part
+    const char *filename = strrchr(name_buf, '/');
     if (filename == NULL) {
-        filename = name;
+        // no slash found, use the whole name
+        filename = name_buf;
     } else {
-        filename++;  // skip the '/'
+        // skip the '/'
+        filename++;
     }
     
-    entry.close();
+    // Validate filename is not empty
+    if (filename == NULL || filename[0] == '\0') {
+        return sd_dir_iter_next(iter);  // skip empty filenames, get next entry
+    }
     
     // skip "." and ".." entries
     if (strcmp(filename, ".") == 0 || strcmp(filename, "..") == 0) {
@@ -135,8 +149,13 @@ static int sd_dir_iter_next(vfs_dir_iter_t *iter) {
     
     // copy name to buffer
     size_t name_len = strlen(filename);
-    if (name_len >= MAX_ENTRY_NAME_LEN) {
-        name_len = MAX_ENTRY_NAME_LEN - 1;
+    if (name_len == 0 || name_len >= MAX_ENTRY_NAME_LEN) {
+        if (name_len >= MAX_ENTRY_NAME_LEN) {
+            name_len = MAX_ENTRY_NAME_LEN - 1;
+        } else {
+            // empty filename, skip it
+            return sd_dir_iter_next(iter);
+        }
     }
     strncpy(state->current_name_buffer, filename, name_len);
     state->current_name_buffer[name_len] = '\0';
@@ -158,6 +177,76 @@ static void sd_dir_iter_destroy(vfs_dir_iter_t *iter) {
     // note: iter structure itself is freed by vfs_dir_iter_destroy wrapper
 }
 
+// Forward declaration
+static vfs_node_t* create_sd_node(const char *path, vfs_node_type_t type);
+
+// VFS directory create implementation for SD card
+static vfs_node_t* sd_dir_create(vfs_node_t *dir_node, const char *name, vfs_node_type_t type) {
+    if (dir_node == NULL || dir_node->type != VFS_NODE_DIR || name == NULL) {
+        return NULL;
+    }
+    
+    boot_sd_switch_to_sd_spi();
+    
+    // get the directory path from backend_data
+    const char *dir_path = (const char*)dir_node->backend_data;
+    if (dir_path == NULL) {
+        dir_path = "/";
+    }
+    
+    // construct full path for the new entry
+    char full_path[MAX_PATH_LEN];
+    size_t dir_path_len = strlen(dir_path);
+    
+    if (dir_path_len + strlen(name) + 2 >= MAX_PATH_LEN) {
+        boot_sd_restore_tft_spi();
+        return NULL;  // path too long
+    }
+    
+    strncpy(full_path, dir_path, MAX_PATH_LEN - 1);
+    
+    // add '/' if directory path doesn't end with one (unless it's root)
+    if (dir_path_len > 0 && dir_path[dir_path_len - 1] != '/') {
+        full_path[dir_path_len] = '/';
+        dir_path_len++;
+    }
+    
+    strncpy(full_path + dir_path_len, name, MAX_PATH_LEN - dir_path_len - 1);
+    full_path[dir_path_len + strlen(name)] = '\0';
+    
+    // check if entry already exists
+    if (SD.exists(full_path)) {
+        // entry exists - resolve and return it
+        boot_sd_restore_tft_spi();
+        return vfs_resolve(full_path);
+    }
+    
+    // create the entry
+    bool success = false;
+    if (type == VFS_NODE_DIR) {
+        // create directory
+        success = SD.mkdir(full_path);
+    } else if (type == VFS_NODE_FILE) {
+        // create file - open in write mode and close it
+        // The SD library creates the file entry when you open for writing
+        // This matches the pattern used in boot_sd_ensure_file
+        File f = SD.open(full_path, FILE_WRITE);
+        if (f) {
+            f.close();
+            success = true;
+        }
+    }
+    
+    boot_sd_restore_tft_spi();
+    
+    if (!success) {
+        return NULL;
+    }
+    
+    // create and return a node for the new entry
+    return create_sd_node(full_path, type);
+}
+
 // VFS operations table for SD filesystem
 static const vfs_ops_t sd_ops = {
     .open = NULL,  // TODO: implement file operations
@@ -170,7 +259,7 @@ static const vfs_ops_t sd_ops = {
     .dir_iter_create = sd_dir_iter_create,
     .dir_iter_next = sd_dir_iter_next,
     .dir_iter_destroy = sd_dir_iter_destroy,
-    .dir_create = NULL,
+    .dir_create = sd_dir_create,
     .dir_remove = NULL
 };
 
@@ -418,6 +507,20 @@ void vfs_dir_iter_destroy(vfs_dir_iter_t *iter) {
     
     // free the iterator structure itself
     free(iter);
+}
+
+vfs_node_t* vfs_dir_create_node(vfs_node_t *dir_node, const char *name, vfs_node_type_t type) {
+    if (dir_node == NULL || dir_node->ops == NULL) {
+        return NULL;
+    }
+    
+    if (dir_node->ops->dir_create == NULL) {
+        return NULL;
+    }
+    
+    return dir_node->ops->dir_create(dir_node, name, type);
+
+    DEBUG_PRINT("VFS create: name='%s' ptr=%p\n", name, name);  // trying to figure out why touch doesnt work
 }
 
 #endif  // ARDUINO

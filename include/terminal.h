@@ -90,7 +90,7 @@ void terminal_handle_arrow_up(terminal_state *term);
 void terminal_handle_arrow_down(terminal_state *term);
 
 // command parsing and execution
-command_tokens_t terminal_parse_command(const char *input);
+void terminal_parse_command(const char *input, command_tokens_t *out_tokens);
 void terminal_execute_command(terminal_state *term, command_tokens_t *tokens);
 void terminal_execute_pipeline(terminal_state *term, command_tokens_t *tokens);
 

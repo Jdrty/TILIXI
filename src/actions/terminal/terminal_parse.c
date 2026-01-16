@@ -41,12 +41,16 @@ static char *next_token(char *str, const char *delimiters, char **saveptr) {
 }
 
 // command parsing
-command_tokens_t terminal_parse_command(const char *input) {
-    command_tokens_t result = {0};
+void terminal_parse_command(const char *input, command_tokens_t *out_tokens) {
+    if (out_tokens == NULL) {
+        return;
+    }
+    
+    memset(out_tokens, 0, sizeof(*out_tokens));
     uint8_t storage_idx = 0;
     
     if (input == NULL || strlen(input) == 0) {
-        return result;
+        return;
     }
     
     // use stack-allocated buffer instead of strdup() to avoid heap allocation
@@ -63,28 +67,24 @@ command_tokens_t terminal_parse_command(const char *input) {
     char *saveptr = input_copy;
     char *token = next_token(input_copy, " \t\n", &saveptr);
     
-    while (token != NULL && result.token_count < max_command_tokens && storage_idx < max_command_tokens) {
+    while (token != NULL && out_tokens->token_count < max_command_tokens &&
+           storage_idx < max_command_tokens) {
         // check for pipe
         if (strcmp(token, "|") == 0) {
-            result.has_pipe = 1;
-            result.pipe_pos = result.token_count;
+            out_tokens->has_pipe = 1;
+            out_tokens->pipe_pos = out_tokens->token_count;
         } else {
             // copy token to per-instance storage (not static)
             size_t token_len = strlen(token);
             if (token_len >= max_token_length) {
                 token_len = max_token_length - 1;
             }
-            memcpy(result.token_storage[storage_idx], token, token_len);
-            result.token_storage[storage_idx][token_len] = '\0';
-            result.tokens[result.token_count] = result.token_storage[storage_idx];
-            result.token_count++;
+            memcpy(out_tokens->token_storage[storage_idx], token, token_len);
+            out_tokens->token_storage[storage_idx][token_len] = '\0';
+            out_tokens->tokens[out_tokens->token_count] = out_tokens->token_storage[storage_idx];
+            out_tokens->token_count++;
             storage_idx++;
         }
         token = next_token(NULL, " \t\n", &saveptr);
     }
-    
-    return result;
 }
-
-
-

@@ -96,11 +96,12 @@ void terminal_handle_enter(terminal_state *term) {
     if (term == NULL || !term->active) return;
     
     // parse command first to check if it's empty
-    extern command_tokens_t terminal_parse_command(const char *input);
+    extern void terminal_parse_command(const char *input, command_tokens_t *out_tokens);
     extern void terminal_execute_pipeline(terminal_state *term, command_tokens_t *tokens);
     extern void terminal_execute_command(terminal_state *term, command_tokens_t *tokens);
     
-    command_tokens_t tokens = terminal_parse_command(term->input_line);
+    command_tokens_t tokens;
+    terminal_parse_command(term->input_line, &tokens);
     
     // add to history
     // theres probably a more unified way to do this that looks a lot better
@@ -182,7 +183,7 @@ void terminal_handle_arrow_down(terminal_state *term) {
     }
 }
 
-extern command_tokens_t terminal_parse_command(const char *input);
+extern void terminal_parse_command(const char *input, command_tokens_t *out_tokens);
 extern void terminal_execute_pipeline(terminal_state *term, command_tokens_t *tokens);
 
 // command execution

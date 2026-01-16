@@ -26,7 +26,7 @@ static char dir1_entries[][16] = {"file3.txt", "subdir"};
 static char subdir_entries[][16] = {"file4.txt"};
 #define SUBDIR_ENTRY_COUNT 1
 
-// Iterator state structure
+// iterator state structure
 typedef struct {
     vfs_node_t *dir_node;
     int entry_idx;
@@ -164,7 +164,7 @@ vfs_node_t* vfs_resolve(const char *path) {
         return &root_node;
     }
     
-    // Handle absolute paths
+    // handle absolute paths
     if (strcmp(path, "/dir1") == 0) {
         dir1_node.refcount++;
         return &dir1_node;
@@ -273,5 +273,29 @@ void vfs_dir_iter_destroy(vfs_dir_iter_t *iter) {
     if (iter->dir_node->ops->dir_iter_destroy != NULL) {
         iter->dir_node->ops->dir_iter_destroy(iter);
     }
+}
+
+vfs_node_t* vfs_dir_create_node(vfs_node_t *dir_node, const char *name, vfs_node_type_t type) {
+    if (dir_node == NULL || dir_node->ops == NULL) {
+        return NULL;
+    }
+    
+    if (dir_node->ops->dir_create == NULL) {
+        return NULL;
+    }
+    
+    return dir_node->ops->dir_create(dir_node, name, type);
+}
+
+int vfs_dir_remove_node(vfs_node_t *dir_node, const char *name) {
+    if (dir_node == NULL || dir_node->ops == NULL || name == NULL) {
+        return VFS_EINVAL;
+    }
+    
+    if (dir_node->ops->dir_remove == NULL) {
+        return VFS_EPERM;  // operation not supported in stub
+    }
+    
+    return dir_node->ops->dir_remove(dir_node, name);
 }
 

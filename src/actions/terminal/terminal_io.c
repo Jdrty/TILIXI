@@ -51,3 +51,6 @@ void terminal_clear(terminal_state *term) {
     term->cursor_row = 0;
     term->cursor_col = 0;
 }
+
+
+

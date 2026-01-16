@@ -284,6 +284,25 @@ esp32-serial-echo:
 	@echo "(: NOTE: Type characters in the serial monitor to see them echoed back"
 	$(PIO) device monitor -e esp32-s3-serial-echo --baud 115200
 
+# Touch and LS test target (tests touch command and ls on real SD card)
+.PHONY: touch-ls-test
+
+touch-ls-test:
+	@if [ -z "$(PIO)" ]; then \
+		echo "error: PlatformIO not found. install it now!! >:[ "; \
+		exit 1; \
+	fi
+	@echo "building touch/ls test for ESP32-S3..."
+	$(PIO) run -e esp32-s3-touch-ls-test
+	@echo "uploading touch/ls test to ESP32-S3..."
+	$(PIO) run -e esp32-s3-touch-ls-test -t upload
+	@echo "(: touch/ls test uploaded"
+	@echo "(: waiting 2 seconds for device to reset..."
+	@sleep 2
+	@echo "(: opening serial monitor (ctrl+c to exit)..."
+	@echo "(: NOTE: This test creates a file with touch and lists it with ls"
+	$(PIO) device monitor -e esp32-s3-touch-ls-test --baud 115200
+
 test_tft_restore:	# uneeded, just feel safer with this for some reason, remove later
 	@if [ -f "src/platform/esp32/main_esp32.cpp.bak" ]; then \
 		mv src/platform/esp32/main_esp32.cpp.bak src/platform/esp32/main_esp32.cpp; \
@@ -342,5 +361,8 @@ help:
 	@echo ""
 	@echo "File read test target (requires PlatformIO):"
 	@echo "  make file-read    - build, upload, and monitor file read test"
+	@echo ""
+	@echo "Touch/LS test target (requires PlatformIO):"
+	@echo "  make touch-ls-test - build, upload, and monitor touch/ls test on real SD"
 	@echo ""
 	@echo "  make help         - show this message"
