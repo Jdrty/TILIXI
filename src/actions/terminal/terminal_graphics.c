@@ -100,7 +100,7 @@ extern int nano_is_active(void);
                 // now write the prompt and input_line to the buffer
                 if (line_start + 0 < terminal_buffer_size) term->buffer[line_start + 0] = '$';
                 if (line_start + 1 < terminal_buffer_size) term->buffer[line_start + 1] = ' ';
-                for (int16_t i = 0; i < term->input_pos && (2 + i) < terminal_cols; i++) {
+                for (int16_t i = 0; i < term->input_len && (2 + i) < terminal_cols; i++) {
                     int16_t buf_pos = line_start + 2 + i;
                     if (buf_pos < terminal_buffer_size) {
                         term->buffer[buf_pos] = term->input_line[i];
@@ -154,7 +154,7 @@ extern int nano_is_active(void);
         }
         
         // draw cursor at current position
-        // for the input line, cursor should be after prompt "$ " (2 chars) plus input_line length
+        // for the input line, cursor should be after prompt "$ " (2 chars) plus input cursor
         int16_t cursor_col_display = term->cursor_col;
         
         // if cursor is on the current input line (within visible range), calculate based on input_pos
@@ -168,8 +168,8 @@ extern int nano_is_active(void);
         int16_t cursor_y = text_y + ((term->cursor_row - start_row) * char_height);
         if (cursor_y >= text_y && cursor_y < text_y + (max_rows * char_height) && 
             cursor_x >= text_x && cursor_x < text_x + (max_cols * char_width)) {
-            boot_tft_set_cursor(cursor_x, cursor_y);
-            boot_tft_print("_");
+            // draw a thin underline cursor without overwriting the character
+            boot_tft_fill_rect(cursor_x, cursor_y + char_height - 1, char_width, 1, COLOR_BLACK);
         }
     }
 #endif

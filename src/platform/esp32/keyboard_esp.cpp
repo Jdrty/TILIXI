@@ -121,8 +121,8 @@ void keyboard_esp_init(void) {
     // TODO: initialize GPIO pins, USB, I2C, etc.
     ESP_INFO("initializing ESP32 keyboard...");
     
-    // Serial is already initialized in setup(), but ensure it's ready for input
-    // Serial input will be read in keyboard_esp_scan()
+    // serial is already initialized in setup(), but ensure it's ready for input
+    // serial input will be read in keyboard_esp_scan()
     
     ESP_INFO("ESP32 keyboard initialized! :D");
     ESP_INFO("Serial input enabled - you can type in the serial monitor!");
@@ -131,9 +131,81 @@ void keyboard_esp_init(void) {
 // this scans the keyboard and processes events
 // reads from Serial (serial monitor) and converts to key events
 void keyboard_esp_scan(void) {
+    static uint8_t escape_state = 0; // 0=none, 1=got ESC, 2=got ESC+[ or ESC+O, 3=CSI params
+
     // check if there's data available on Serial
     if (Serial.available() > 0) {
         char c = Serial.read();
+
+        // handle ANSI escape sequences (arrow keys) without printing escape bytes
+        if (escape_state == 1) {
+            if (c == '[' || c == 'O') {
+                escape_state = 2;
+            } else {
+                escape_state = 0;
+            }
+            return;
+        }
+        if (escape_state == 2) {
+            if ((c >= '0' && c <= '9') || c == ';') {
+                escape_state = 3;
+                return;
+            }
+            escape_state = 0;
+            key_event evt;
+            evt.modifiers = 0;
+            evt.key = key_none;
+            switch (c) {
+                case 'A': evt.key = key_up; break;
+                case 'B': evt.key = key_down; break;
+                case 'C': evt.key = key_right; break;
+                case 'D': evt.key = key_left; break;
+                default: evt.key = key_none; break;
+            }
+            if (evt.key != key_none) {
+                Serial.printf("[KEYBOARD] arrow key: %c\n", c);
+                process(evt);
+                terminal_state *term = get_active_terminal();
+                if (term != NULL && term->active) {
+                    terminal_render_window(term);
+                }
+                last_key_event = evt;
+            }
+            return;
+        }
+        if (escape_state == 3) {
+            if (c >= '0' && c <= '9') {
+                return;
+            }
+            if (c == ';') {
+                return;
+            }
+            escape_state = 0;
+            key_event evt;
+            evt.modifiers = 0;
+            evt.key = key_none;
+            switch (c) {
+                case 'A': evt.key = key_up; break;
+                case 'B': evt.key = key_down; break;
+                case 'C': evt.key = key_right; break;
+                case 'D': evt.key = key_left; break;
+                default: evt.key = key_none; break;
+            }
+            if (evt.key != key_none) {
+                Serial.printf("[KEYBOARD] arrow key (CSI): %c\n", c);
+                process(evt);
+                terminal_state *term = get_active_terminal();
+                if (term != NULL && term->active) {
+                    terminal_render_window(term);
+                }
+                last_key_event = evt;
+            }
+            return;
+        }
+        if ((unsigned char)c == 27) {
+            escape_state = 1;
+            return;
+        }
         
         // debug: print raw character received
         Serial.printf("[KEYBOARD] raw char: '%c' (ascii: %d, hex: 0x%02x)\n", 
@@ -142,7 +214,7 @@ void keyboard_esp_scan(void) {
         // handle CRLF sequence - only process CR (\r), ignore LF (\n)
         // Both CR (0x0d) and LF (0x0a) map to key_enter, but when Enter is pressed,
         // the serial monitor sends both. We only want to process ONE of them.
-        // Simple solution: always ignore LF, only process CR
+        // simple solution: always ignore LF, only process CR
         if (c == '\n') {
             Serial.printf("[KEYBOARD] ignoring LF (0x0a) - only processing CR (0x0d) for Enter\n");
             return;  // ignore LF completely, exit immediately
@@ -171,7 +243,7 @@ void keyboard_esp_scan(void) {
         }
         
         // handle control characters (Ctrl+key combinations)
-        // Control characters are sent as 1-26 for Ctrl+A through Ctrl+Z
+        // control characters are sent as 1-26
         // exclude backspace (8), tab (9), newline (10), carriage return (13)
         if ((unsigned char)c <= 26 && c != '\n' && c != '\r' && (unsigned char)c != 8 && c != '\t') {
             evt.modifiers |= mod_ctrl;

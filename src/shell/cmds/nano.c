@@ -138,6 +138,7 @@ static void nano_exit_to_shell(void) {
     terminal_clear(term);
     memset(term->input_line, 0, terminal_cols);
     term->input_pos = 0;
+    term->input_len = 0;
     terminal_write_string(term, "$ ");
     term->cursor_row = 0;
     term->cursor_col = 2;
@@ -344,6 +345,66 @@ static void nano_backspace(void) {
     nano_state.dirty = 1;
 }
 
+static size_t nano_line_start(size_t pos) {
+    while (pos > 0 && nano_state.buffer[pos - 1] != '\n') {
+        pos--;
+    }
+    return pos;
+}
+
+static size_t nano_line_end(size_t pos) {
+    while (pos < nano_state.length && nano_state.buffer[pos] != '\n') {
+        pos++;
+    }
+    return pos;
+}
+
+static void nano_move_left(void) {
+    if (nano_state.cursor > 0) {
+        nano_state.cursor--;
+    }
+}
+
+static void nano_move_right(void) {
+    if (nano_state.cursor < nano_state.length) {
+        nano_state.cursor++;
+    }
+}
+
+static void nano_move_up(void) {
+    if (nano_state.cursor == 0) {
+        return;
+    }
+    size_t curr_start = nano_line_start(nano_state.cursor);
+    if (curr_start == 0) {
+        return;
+    }
+    size_t prev_end = curr_start - 1;
+    size_t prev_start = nano_line_start(prev_end);
+    size_t col = nano_state.cursor - curr_start;
+    size_t prev_len = prev_end - prev_start;
+    if (col > prev_len) {
+        col = prev_len;
+    }
+    nano_state.cursor = prev_start + col;
+}
+
+static void nano_move_down(void) {
+    size_t curr_start = nano_line_start(nano_state.cursor);
+    size_t curr_end = nano_line_end(nano_state.cursor);
+    if (curr_end >= nano_state.length || nano_state.buffer[curr_end] != '\n') {
+        return;
+    }
+    size_t next_start = curr_end + 1;
+    size_t next_end = nano_line_end(next_start);
+    size_t col = nano_state.cursor - curr_start;
+    size_t next_len = next_end - next_start;
+    if (col > next_len) {
+        col = next_len;
+    }
+    nano_state.cursor = next_start + col;
+}
+
 void nano_handle_key_event(key_event evt) {
     if (!nano_state.active || nano_state.term == NULL) {
         return;
@@ -429,7 +490,15 @@ void nano_handle_key_event(key_event evt) {
         return;
     }
     
-    if (evt.key == key_enter) {
+    if (evt.key == key_left) {
+        nano_move_left();
+    } else if (evt.key == key_right) {
+        nano_move_right();
+    } else if (evt.key == key_up) {
+        nano_move_up();
+    } else if (evt.key == key_down) {
+        nano_move_down();
+    } else if (evt.key == key_enter) {
         nano_insert_char('\n');
     } else if (evt.key == key_backspace) {
         nano_backspace();

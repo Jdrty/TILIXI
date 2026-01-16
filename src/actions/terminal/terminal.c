@@ -21,6 +21,7 @@ void init_terminal_system(void) {
         terminals[i].cursor_row = 0;
         terminals[i].cursor_col = 0;
         terminals[i].input_pos = 0;
+        terminals[i].input_len = 0;
         terminals[i].history_count = 0;
         terminals[i].history_pos = 0;
         terminals[i].cwd = NULL;
@@ -59,36 +60,56 @@ void terminal_write_line(terminal_state *term, const char *str);
 void terminal_newline(terminal_state *term);
 void terminal_clear(terminal_state *term);
 
+static void terminal_redraw_input_line(terminal_state *term) {
+    if (term == NULL || !term->active) return;
+    uint16_t line_start = term->cursor_row * terminal_cols;
+    if (line_start >= terminal_buffer_size) return;
+    for (uint16_t col = 0; col < terminal_cols; col++) {
+        if (line_start + col < terminal_buffer_size) {
+            term->buffer[line_start + col] = ' ';
+        }
+    }
+    if (line_start + 0 < terminal_buffer_size) term->buffer[line_start + 0] = '$';
+    if (line_start + 1 < terminal_buffer_size) term->buffer[line_start + 1] = ' ';
+    for (uint16_t i = 0; i < term->input_len && (2 + i) < terminal_cols; i++) {
+        uint16_t buf_pos = line_start + 2 + i;
+        if (buf_pos < terminal_buffer_size) {
+            term->buffer[buf_pos] = term->input_line[i];
+        }
+    }
+    term->cursor_col = 2 + term->input_pos;
+}
+
 void terminal_handle_key(terminal_state *term, char key) {
     if (term == NULL || !term->active) return;
     
-    if (term->input_pos < terminal_cols - 1 && key >= 32 && key < 127) {
-        term->input_line[term->input_pos++] = key;
-        term->input_line[term->input_pos] = '\0';
-        terminal_write_char(term, key);  // echo character to buffer
-        
-        // cursor should be at: prompt "$ " (2 chars) + input_pos
-        // this keeps cursor_col correct for rendering
-        term->cursor_col = 2 + term->input_pos;
+    if (term->input_len < terminal_cols - 1 && key >= 32 && key < 127) {
+        if (term->input_pos < term->input_len) {
+            memmove(&term->input_line[term->input_pos + 1],
+                    &term->input_line[term->input_pos],
+                    term->input_len - term->input_pos);
+        }
+        term->input_line[term->input_pos] = key;
+        term->input_pos++;
+        term->input_len++;
+        term->input_line[term->input_len] = '\0';
+        terminal_redraw_input_line(term);
     }
 }
 
 void terminal_handle_backspace(terminal_state *term) {
     if (term == NULL || !term->active) return;
     
-    if (term->input_pos > 0) {
-        uint16_t pos_to_clear = term->cursor_row * terminal_cols + (2 + term->input_pos - 1);
-        if (pos_to_clear < terminal_buffer_size) {
-            term->buffer[pos_to_clear] = ' ';  // clear the character from buffer
-        }
-        
-        // remove character from input line
+    if (term->input_pos > 0 && term->input_len > 0) {
         term->input_pos--;
-        term->input_line[term->input_pos] = '\0';
-        
-        term->cursor_col = 2 + term->input_pos;
-        
-        // don't call terminal_write_char with \b, that writes backspace as a character!!!!!!!
+        if (term->input_pos < term->input_len - 1) {
+            memmove(&term->input_line[term->input_pos],
+                    &term->input_line[term->input_pos + 1],
+                    term->input_len - term->input_pos - 1);
+        }
+        term->input_len--;
+        term->input_line[term->input_len] = '\0';
+        terminal_redraw_input_line(term);
     }
 }
 
@@ -106,7 +127,7 @@ void terminal_handle_enter(terminal_state *term) {
     // add to history
     // theres probably a more unified way to do this that looks a lot better
     // butttttttt im too lazy and dumb...
-    if (term->input_pos > 0) {
+    if (term->input_len > 0) {
         if (term->history_count < max_input_history) {
             strncpy(term->history[term->history_count], term->input_line, terminal_cols - 1);
             term->history[term->history_count][terminal_cols - 1] = '\0';
@@ -138,6 +159,7 @@ void terminal_handle_enter(terminal_state *term) {
     // clear input line
     memset(term->input_line, 0, terminal_cols);
     term->input_pos = 0;
+    term->input_len = 0;
     
     // if a fullscreen app is active (e.g. nano), don't draw the shell prompt
     extern int nano_is_active(void);
@@ -162,11 +184,9 @@ void terminal_handle_arrow_up(terminal_state *term) {
         term->history_pos--;
         strncpy(term->input_line, term->history[term->history_pos], terminal_cols - 1);
         term->input_line[terminal_cols - 1] = '\0';
-        term->input_pos = strlen(term->input_line);
-        
-        // clear current line and redraw
-        terminal_write_string(term, "\r$ ");
-        terminal_write_string(term, term->input_line);
+        term->input_len = strlen(term->input_line);
+        term->input_pos = term->input_len;
+        terminal_redraw_input_line(term);
     }
 }
 
@@ -181,11 +201,25 @@ void terminal_handle_arrow_down(terminal_state *term) {
         } else {
             memset(term->input_line, 0, terminal_cols);
         }
-        term->input_pos = strlen(term->input_line);
-        
-        // clear current line and redraw
-        terminal_write_string(term, "\r$ ");
-        terminal_write_string(term, term->input_line);
+        term->input_len = strlen(term->input_line);
+        term->input_pos = term->input_len;
+        terminal_redraw_input_line(term);
+    }
+}
+
+void terminal_handle_arrow_left(terminal_state *term) {
+    if (term == NULL || !term->active) return;
+    if (term->input_pos > 0) {
+        term->input_pos--;
+        term->cursor_col = 2 + term->input_pos;
+    }
+}
+
+void terminal_handle_arrow_right(terminal_state *term) {
+    if (term == NULL || !term->active) return;
+    if (term->input_pos < term->input_len) {
+        term->input_pos++;
+        term->cursor_col = 2 + term->input_pos;
     }
 }
 

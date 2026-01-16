@@ -94,10 +94,12 @@ void test_terminal_input(void) {
     terminal_handle_key(term, 'o');
     
     assert(term->input_pos == 5);
+    assert(term->input_len == 5);
     assert(strncmp(term->input_line, "hello", 5) == 0);
     
     terminal_handle_backspace(term);
     assert(term->input_pos == 4);
+    assert(term->input_len == 4);
     
     printf("FUNCTIONAL\n");
     teardown_terminal_full();
@@ -142,10 +144,12 @@ void test_terminal_history(void) {
     // simulate entering commands
     strncpy(term->input_line, "command1", terminal_cols - 1);
     term->input_pos = strlen("command1");
+    term->input_len = strlen("command1");
     terminal_handle_enter(term);
     
     strncpy(term->input_line, "command2", terminal_cols - 1);
     term->input_pos = strlen("command2");
+    term->input_len = strlen("command2");
     terminal_handle_enter(term);
     
     assert(term->history_count == 2);

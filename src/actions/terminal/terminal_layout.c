@@ -113,6 +113,7 @@ void new_terminal(void) {
     new_term->cursor_row = 0;
     new_term->cursor_col = 0;
     new_term->input_pos = 0;
+    new_term->input_len = 0;
     new_term->history_count = 0;
     new_term->history_pos = 0;
     

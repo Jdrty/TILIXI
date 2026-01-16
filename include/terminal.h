@@ -53,6 +53,7 @@ typedef struct {
     uint8_t cursor_col;
     uint8_t active;     // is terminal in use
     uint8_t input_pos;  // cursor position in input
+    uint8_t input_len;  // length of input_line
     terminal_pipe_t pipes[max_pipe_commands];  // pipes for command chaining
     vfs_node_t *cwd;    // current working directory
     
@@ -88,6 +89,8 @@ void terminal_handle_backspace(terminal_state *term);
 void terminal_handle_enter(terminal_state *term);
 void terminal_handle_arrow_up(terminal_state *term);
 void terminal_handle_arrow_down(terminal_state *term);
+void terminal_handle_arrow_left(terminal_state *term);
+void terminal_handle_arrow_right(terminal_state *term);
 
 // command parsing and execution
 void terminal_parse_command(const char *input, command_tokens_t *out_tokens);

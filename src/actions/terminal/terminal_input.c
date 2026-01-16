@@ -129,8 +129,10 @@ void terminal_handle_key_event(key_event evt) {
             terminal_handle_arrow_down(term);
             break;
         case key_left:
+            terminal_handle_arrow_left(term);
+            break;
         case key_right:
-            // cursor movement - could be implemented later
+            terminal_handle_arrow_right(term);
             break;
         case key_tab:
             // tab completion - could be implemented later

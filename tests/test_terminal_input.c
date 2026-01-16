@@ -23,6 +23,7 @@ void test_key_to_char_basic(void) {
     
     // clear any initial prompt text - need to reset after new_terminal() which writes prompt
     term->input_pos = 0;
+    term->input_len = 0;
     memset(term->input_line, 0, terminal_cols);
     
     key_event evt;
@@ -33,12 +34,14 @@ void test_key_to_char_basic(void) {
 
     // check that character was added
     assert(term->input_pos == 1);
+    assert(term->input_len == 1);
     assert(term->input_line[0] == 'a');
     
     // test that we can add another character
     // Use terminal_handle_key directly to avoid potential issues with key_to_char
     terminal_handle_key(term, 'b');
     assert(term->input_pos == 2);
+    assert(term->input_len == 2);
     assert(term->input_line[0] == 'a');
     assert(term->input_line[1] == 'b');
     
@@ -60,6 +63,7 @@ void test_key_to_char_shift(void) {
     
     terminal_handle_key_event(evt);
     assert(term->input_pos == 1);
+    assert(term->input_len == 1);
     assert(term->input_line[0] == 'A');
     
     printf("FUNCTIONAL\n");
@@ -76,6 +80,7 @@ void test_key_enter(void) {
     
     // clear initial state
     term->input_pos = 0;
+    term->input_len = 0;
     memset(term->input_line, 0, terminal_cols);
     
     // type some text using direct function
@@ -83,6 +88,7 @@ void test_key_enter(void) {
     terminal_handle_key(term, 'i');
     
     assert(term->input_pos == 2);
+    assert(term->input_len == 2);
     
     // press enter
     key_event evt;
@@ -92,6 +98,7 @@ void test_key_enter(void) {
     
     // input should be cleared and added to history
     assert(term->input_pos == 0);
+    assert(term->input_len == 0);
     assert(term->history_count > 0);
     
     printf("FUNCTIONAL\n");
@@ -108,6 +115,7 @@ void test_key_backspace(void) {
     
     // clear initial state
     term->input_pos = 0;
+    term->input_len = 0;
     memset(term->input_line, 0, terminal_cols);
     
     // type some text using direct function
@@ -115,6 +123,7 @@ void test_key_backspace(void) {
     terminal_handle_key(term, 'i');
     
     assert(term->input_pos == 2);
+    assert(term->input_len == 2);
     
     // press backspace
     key_event evt;
@@ -123,6 +132,7 @@ void test_key_backspace(void) {
     terminal_handle_key_event(evt);
     
     assert(term->input_pos == 1);
+    assert(term->input_len == 1);
     assert(term->input_line[0] == 'h');
     
     printf("FUNCTIONAL\n");
@@ -140,10 +150,12 @@ void test_key_arrows(void) {
     // add some history
     strncpy(term->input_line, "command1", terminal_cols - 1);
     term->input_pos = strlen("command1");
+    term->input_len = strlen("command1");
     terminal_handle_enter(term);
     
     strncpy(term->input_line, "command2", terminal_cols - 1);
     term->input_pos = strlen("command2");
+    term->input_len = strlen("command2");
     terminal_handle_enter(term);
     
     assert(term->history_count == 2);
