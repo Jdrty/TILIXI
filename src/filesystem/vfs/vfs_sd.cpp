@@ -246,6 +246,61 @@ static vfs_node_t* sd_dir_create(vfs_node_t *dir_node, const char *name, vfs_nod
     return create_sd_node(full_path, type);
 }
 
+static int sd_dir_remove(vfs_node_t *dir_node, const char *name) {
+    if (dir_node == NULL || dir_node->type != VFS_NODE_DIR || name == NULL || name[0] == '\0') {
+        return VFS_EINVAL;
+    }
+    
+    boot_sd_switch_to_sd_spi();
+    
+    const char *dir_path = (const char*)dir_node->backend_data;
+    if (dir_path == NULL) {
+        dir_path = "/";
+    }
+    
+    char full_path[MAX_PATH_LEN];
+    size_t dir_path_len = strlen(dir_path);
+    
+    if (dir_path_len + strlen(name) + 2 >= MAX_PATH_LEN) {
+        boot_sd_restore_tft_spi();
+        return VFS_ENAMETOOLONG;
+    }
+    
+    strncpy(full_path, dir_path, MAX_PATH_LEN - 1);
+    if (dir_path_len > 0 && dir_path[dir_path_len - 1] != '/') {
+        full_path[dir_path_len] = '/';
+        dir_path_len++;
+    }
+    
+    strncpy(full_path + dir_path_len, name, MAX_PATH_LEN - dir_path_len - 1);
+    full_path[dir_path_len + strlen(name)] = '\0';
+    
+    if (!SD.exists(full_path)) {
+        boot_sd_restore_tft_spi();
+        return VFS_ENOENT;
+    }
+    
+    File f = SD.open(full_path);
+    if (!f) {
+        boot_sd_restore_tft_spi();
+        return VFS_EIO;
+    }
+    
+    bool is_dir = f.isDirectory();
+    f.close();
+    
+    bool success = false;
+    if (is_dir) {
+        success = SD.rmdir(full_path);
+    } else {
+        success = SD.remove(full_path);
+    }
+    
+    boot_sd_restore_tft_spi();
+    
+    return success ? VFS_EOK : VFS_EPERM;
+}
+
 // VFS operations table for SD filesystem
 static const vfs_ops_t sd_ops = {
     .open = NULL,  // TODO: implement file operations
@@ -259,7 +314,7 @@ static const vfs_ops_t sd_ops = {
     .dir_iter_next = sd_dir_iter_next,
     .dir_iter_destroy = sd_dir_iter_destroy,
     .dir_create = sd_dir_create,
-    .dir_remove = NULL
+    .dir_remove = sd_dir_remove
 };
 
 // helper to get full path from base and relative path
@@ -520,6 +575,18 @@ vfs_node_t* vfs_dir_create_node(vfs_node_t *dir_node, const char *name, vfs_node
     return dir_node->ops->dir_create(dir_node, name, type);
 
     DEBUG_PRINT("VFS create: name='%s' ptr=%p\n", name, name);  // trying to figure out why touch doesnt work
+}
+
+int vfs_dir_remove_node(vfs_node_t *dir_node, const char *name) {
+    if (dir_node == NULL || dir_node->ops == NULL || name == NULL) {
+        return VFS_EINVAL;
+    }
+    
+    if (dir_node->ops->dir_remove == NULL) {
+        return VFS_EPERM;
+    }
+    
+    return dir_node->ops->dir_remove(dir_node, name);
 }
 
 #endif  // ARDUINO
