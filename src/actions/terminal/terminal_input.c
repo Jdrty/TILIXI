@@ -5,6 +5,8 @@
 #include "terminal.h"
 #include "keyboard_core.h"
 #include "debug_helper.h"
+#include "firstboot.h"
+#include "passwd.h"
 
 extern int nano_is_active(void);
 extern void nano_handle_key_event(key_event evt);
@@ -106,6 +108,16 @@ void terminal_handle_key_event(key_event evt) {
 #ifndef ARDUINO
         DEBUG_PRINT("[TERMINAL_INPUT] terminal_handle_key_event: terminal not active\n");
 #endif
+        return;
+    }
+    
+    if (firstboot_is_active()) {
+        firstboot_handle_key_event(evt);
+        return;
+    }
+
+    if (passwd_is_active()) {
+        passwd_handle_key_event(evt);
         return;
     }
     

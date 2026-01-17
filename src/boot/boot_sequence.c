@@ -274,7 +274,19 @@ void boot_start_desktop(void) {
     // create first terminal (fullscreen)
     #include "terminal.h"
     #include "action_manager.h"
+    #include "firstboot.h"
     new_terminal();
+    terminal_state *term = get_active_terminal();
+    firstboot_begin_if_needed(term);
+#ifdef ARDUINO
+    extern void terminal_render_all(void);
+    extern void terminal_render_window(terminal_state *term);
+    if (firstboot_is_active()) {
+        terminal_render_window(term);
+    } else {
+        terminal_render_all();
+    }
+#endif
     
     DEBUG_PRINT("[BOOT] Desktop started - Terminal ready\n");
 #else

@@ -165,7 +165,8 @@ void terminal_handle_enter(terminal_state *term) {
     
     // if a fullscreen app is active (e.g. nano), don't draw the shell prompt
     extern int nano_is_active(void);
-    if (nano_is_active()) {
+    extern int passwd_is_active(void);
+    if (nano_is_active() || passwd_is_active()) {
         return;
     }
     
