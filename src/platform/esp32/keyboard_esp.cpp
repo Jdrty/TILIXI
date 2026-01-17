@@ -10,6 +10,12 @@
 
 static key_event last_key_event = {key_none, 0};
 
+#ifdef KEYBOARD_SERIAL_DEBUG
+#define KEYBOARD_DBG(...) Serial.printf(__VA_ARGS__)
+#else
+#define KEYBOARD_DBG(...) do { } while (0)
+#endif
+
 // convert ASCII char to key_code (similar to PC version)
 static key_code key_from_char(char c) {
     // map lowercase letters to their corresponding key codes (QWERTY layout order)
@@ -128,208 +134,191 @@ void keyboard_esp_init(void) {
     ESP_INFO("Serial input enabled - you can type in the serial monitor!");
 }
 
+static void keyboard_esp_handle_char(char c, uint8_t *escape_state, bool *needs_render) {
+    // handle ANSI escape sequences (arrow keys) without printing escape bytes
+    if (*escape_state == 1) {
+        if (c == '[' || c == 'O') {
+            *escape_state = 2;
+        } else {
+            *escape_state = 0;
+        }
+        return;
+    }
+    if (*escape_state == 2) {
+        if ((c >= '0' && c <= '9') || c == ';') {
+            *escape_state = 3;
+            return;
+        }
+        *escape_state = 0;
+        key_event evt;
+        evt.modifiers = 0;
+        evt.key = key_none;
+        switch (c) {
+            case 'A': evt.key = key_up; break;
+            case 'B': evt.key = key_down; break;
+            case 'C': evt.key = key_right; break;
+            case 'D': evt.key = key_left; break;
+            default: evt.key = key_none; break;
+        }
+        if (evt.key != key_none) {
+            KEYBOARD_DBG("[KEYBOARD] arrow key: %c\n", c);
+            process(evt);
+            *needs_render = true;
+            last_key_event = evt;
+        }
+        return;
+    }
+    if (*escape_state == 3) {
+        if (c >= '0' && c <= '9') {
+            return;
+        }
+        if (c == ';') {
+            return;
+        }
+        *escape_state = 0;
+        key_event evt;
+        evt.modifiers = 0;
+        evt.key = key_none;
+        switch (c) {
+            case 'A': evt.key = key_up; break;
+            case 'B': evt.key = key_down; break;
+            case 'C': evt.key = key_right; break;
+            case 'D': evt.key = key_left; break;
+            default: evt.key = key_none; break;
+        }
+        if (evt.key != key_none) {
+            KEYBOARD_DBG("[KEYBOARD] arrow key (CSI): %c\n", c);
+            process(evt);
+            *needs_render = true;
+            last_key_event = evt;
+        }
+        return;
+    }
+    if ((unsigned char)c == 27) {
+        *escape_state = 1;
+        return;
+    }
+    
+    // debug: print raw character received
+    KEYBOARD_DBG("[KEYBOARD] raw char: '%c' (ascii: %d, hex: 0x%02x)\n", 
+                 (c >= 32 && c < 127) ? c : '?', (int)(unsigned char)c, (unsigned char)c);
+    
+    // handle CRLF sequence - only process CR (\r), ignore LF (\n)
+    if (c == '\n') {
+        KEYBOARD_DBG("[KEYBOARD] ignoring LF (0x0a) - only processing CR (0x0d) for Enter\n");
+        return;  // ignore LF completely, exit immediately
+    }
+    
+    key_event evt;
+    evt.modifiers = 0;
+    evt.key = key_none;
+    
+    // handle backspace and delete keys first (before control character check)
+    if ((unsigned char)c == 8 || (unsigned char)c == 127) {
+        evt.key = key_backspace;
+        KEYBOARD_DBG("[KEYBOARD] detected backspace key (ascii=%d)\n", (unsigned char)c);
+        process(evt);
+        *needs_render = true;
+        last_key_event = evt;
+        return;
+    }
+    
+    // handle control characters (Ctrl+key combinations)
+    if ((unsigned char)c <= 26 && c != '\n' && c != '\r' && (unsigned char)c != 8 && c != '\t') {
+        evt.modifiers |= mod_ctrl;
+        c += 'a' - 1; // convert back to lowercase
+        KEYBOARD_DBG("[KEYBOARD] detected ctrl character\n");
+    }
+    
+    // handle shift modifier (uppercase letters)
+    if (c >= 'A' && c <= 'Z') {
+        evt.modifiers |= mod_shift;
+        c = c - 'A' + 'a';  // convert to lowercase
+        KEYBOARD_DBG("[KEYBOARD] detected shift (uppercase)\n");
+    }
+    
+    // handle shifted special characters
+    if (c == '_') {
+        evt.modifiers |= mod_shift;
+        c = '-';
+    } else if (c == '+') {
+        evt.modifiers |= mod_shift;
+        c = '=';
+    } else if (c == '{') {
+        evt.modifiers |= mod_shift;
+        c = '[';
+    } else if (c == '}') {
+        evt.modifiers |= mod_shift;
+        c = ']';
+    } else if (c == '|') {
+        evt.modifiers |= mod_shift;
+        c = '\\';
+    } else if (c == ':') {
+        evt.modifiers |= mod_shift;
+        c = ';';
+    } else if (c == '"') {
+        evt.modifiers |= mod_shift;
+        c = '\'';
+    } else if (c == '<') {
+        evt.modifiers |= mod_shift;
+        c = ',';
+    } else if (c == '>') {
+        evt.modifiers |= mod_shift;
+        c = '.';
+    } else if (c == '?') {
+        evt.modifiers |= mod_shift;
+        c = '/';
+    } else if (c == '~') {
+        evt.modifiers |= mod_shift;
+        c = '`';
+    } else if (c >= '!' && c <= ')') {
+        evt.modifiers |= mod_shift;
+        const char shifted_chars[] = "!@#$%^&*()";
+        const char normal_chars[] = "1234567890";
+        for (int i = 0; i < 10; i++) {
+            if (c == shifted_chars[i]) {
+                c = normal_chars[i];
+                break;
+            }
+        }
+    }
+    
+    evt.key = key_from_char(c);
+    
+    // debug: print converted key event
+    KEYBOARD_DBG("[KEYBOARD] converted: key_code=%d, modifiers=0x%02x, char='%c'\n", 
+                 evt.key, evt.modifiers, c);
+    
+    if (evt.key != key_none) {
+        KEYBOARD_DBG("[KEYBOARD] processing event...\n");
+        process(evt);
+        *needs_render = true;
+        last_key_event = evt;
+    } else {
+        KEYBOARD_DBG("[KEYBOARD] key is key_none, ignoring\n");
+    }
+}
+
 // this scans the keyboard and processes events
 // reads from Serial (serial monitor) and converts to key events
 void keyboard_esp_scan(void) {
     static uint8_t escape_state = 0; // 0=none, 1=got ESC, 2=got ESC+[ or ESC+O, 3=CSI params
-
-    // check if there's data available on Serial
-    if (Serial.available() > 0) {
+    bool needs_render = false;
+    
+    // read and process all available bytes to avoid 1-byte-per-scan bottleneck
+    while (Serial.available() > 0) {
         char c = Serial.read();
+        keyboard_esp_handle_char(c, &escape_state, &needs_render);
+    }
 
-        // handle ANSI escape sequences (arrow keys) without printing escape bytes
-        if (escape_state == 1) {
-            if (c == '[' || c == 'O') {
-                escape_state = 2;
-            } else {
-                escape_state = 0;
-            }
-            return;
-        }
-        if (escape_state == 2) {
-            if ((c >= '0' && c <= '9') || c == ';') {
-                escape_state = 3;
-                return;
-            }
-            escape_state = 0;
-            key_event evt;
-            evt.modifiers = 0;
-            evt.key = key_none;
-            switch (c) {
-                case 'A': evt.key = key_up; break;
-                case 'B': evt.key = key_down; break;
-                case 'C': evt.key = key_right; break;
-                case 'D': evt.key = key_left; break;
-                default: evt.key = key_none; break;
-            }
-            if (evt.key != key_none) {
-                Serial.printf("[KEYBOARD] arrow key: %c\n", c);
-                process(evt);
-                terminal_state *term = get_active_terminal();
-                if (term != NULL && term->active) {
-                    terminal_render_window(term);
-                }
-                last_key_event = evt;
-            }
-            return;
-        }
-        if (escape_state == 3) {
-            if (c >= '0' && c <= '9') {
-                return;
-            }
-            if (c == ';') {
-                return;
-            }
-            escape_state = 0;
-            key_event evt;
-            evt.modifiers = 0;
-            evt.key = key_none;
-            switch (c) {
-                case 'A': evt.key = key_up; break;
-                case 'B': evt.key = key_down; break;
-                case 'C': evt.key = key_right; break;
-                case 'D': evt.key = key_left; break;
-                default: evt.key = key_none; break;
-            }
-            if (evt.key != key_none) {
-                Serial.printf("[KEYBOARD] arrow key (CSI): %c\n", c);
-                process(evt);
-                terminal_state *term = get_active_terminal();
-                if (term != NULL && term->active) {
-                    terminal_render_window(term);
-                }
-                last_key_event = evt;
-            }
-            return;
-        }
-        if ((unsigned char)c == 27) {
-            escape_state = 1;
-            return;
-        }
-        
-        // debug: print raw character received
-        Serial.printf("[KEYBOARD] raw char: '%c' (ascii: %d, hex: 0x%02x)\n", 
-                      (c >= 32 && c < 127) ? c : '?', (int)(unsigned char)c, (unsigned char)c);
-        
-        // handle CRLF sequence - only process CR (\r), ignore LF (\n)
-        // Both CR (0x0d) and LF (0x0a) map to key_enter, but when Enter is pressed,
-        // the serial monitor sends both. We only want to process ONE of them.
-        // simple solution: always ignore LF, only process CR
-        if (c == '\n') {
-            Serial.printf("[KEYBOARD] ignoring LF (0x0a) - only processing CR (0x0d) for Enter\n");
-            return;  // ignore LF completely, exit immediately
-        }
-        // CR will be processed normally through the rest of the function
-        
-        key_event evt;
-        evt.modifiers = 0;
-        evt.key = key_none;
-        
-        // handle backspace and delete keys first (before control character check)
-        // backspace can be ASCII 8 (\b) or 127 (DEL)
-        // ASCII 8 is in the control character range, so we must check it first
-        if ((unsigned char)c == 8 || (unsigned char)c == 127) {
-            evt.key = key_backspace;
-            Serial.printf("[KEYBOARD] detected backspace key (ascii=%d)\n", (unsigned char)c);
-            // process backspace directly, skip character conversion
-            process(evt);
-            terminal_state *term = get_active_terminal();
-            if (term != NULL && term->active) {
-                Serial.printf("[KEYBOARD] rendering terminal window after backspace...\n");
-                terminal_render_window(term);
-            }
-            last_key_event = evt;
-            return;  // early return, backspace handled
-        }
-        
-        // handle control characters (Ctrl+key combinations)
-        // control characters are sent as 1-26
-        // exclude backspace (8), tab (9), newline (10), carriage return (13)
-        if ((unsigned char)c <= 26 && c != '\n' && c != '\r' && (unsigned char)c != 8 && c != '\t') {
-            evt.modifiers |= mod_ctrl;
-            c += 'a' - 1; // convert back to lowercase
-            Serial.printf("[KEYBOARD] detected ctrl character\n");
-        }
-        
-        // handle shift modifier (uppercase letters)
-        // convert to lowercase for key_from_char but keep shift modifier
-        if (c >= 'A' && c <= 'Z') {
-            evt.modifiers |= mod_shift;
-            c = c - 'A' + 'a';  // convert to lowercase
-            Serial.printf("[KEYBOARD] detected shift (uppercase)\n");
-        }
-        
-        // handle shifted special characters
-        if (c == '_') {
-            evt.modifiers |= mod_shift;
-            c = '-';
-        } else if (c == '+') {
-            evt.modifiers |= mod_shift;
-            c = '=';
-        } else if (c == '{') {
-            evt.modifiers |= mod_shift;
-            c = '[';
-        } else if (c == '}') {
-            evt.modifiers |= mod_shift;
-            c = ']';
-        } else if (c == '|') {
-            evt.modifiers |= mod_shift;
-            c = '\\';
-        } else if (c == ':') {
-            evt.modifiers |= mod_shift;
-            c = ';';
-        } else if (c == '"') {
-            evt.modifiers |= mod_shift;
-            c = '\'';
-        } else if (c == '<') {
-            evt.modifiers |= mod_shift;
-            c = ',';
-        } else if (c == '>') {
-            evt.modifiers |= mod_shift;
-            c = '.';
-        } else if (c == '?') {
-            evt.modifiers |= mod_shift;
-            c = '/';
-        } else if (c == '~') {
-            evt.modifiers |= mod_shift;
-            c = '`';
-        } else if (c >= '!' && c <= ')') {
-            // shifted numbers: !@#$%^&*()
-            evt.modifiers |= mod_shift;
-            const char shifted_chars[] = "!@#$%^&*()";
-            const char normal_chars[] = "1234567890";
-            for (int i = 0; i < 10; i++) {
-                if (c == shifted_chars[i]) {
-                    c = normal_chars[i];
-                    break;
-                }
-            }
-        }
-        
-        evt.key = key_from_char(c);
-        
-        // debug: print converted key event
-        Serial.printf("[KEYBOARD] converted: key_code=%d, modifiers=0x%02x, char='%c'\n", 
-                      evt.key, evt.modifiers, c);
-        
-        // process the event if valid
-        if (evt.key != key_none) {
-            Serial.printf("[KEYBOARD] processing event...\n");
-            process(evt);
-            
-            // render terminal after processing key event (on ESP32, terminal needs to be rendered to TFT)
-            terminal_state *term = get_active_terminal();
-            if (term != NULL && term->active) {
-                Serial.printf("[KEYBOARD] rendering terminal window...\n");
-                terminal_render_window(term);
-            } else {
-                Serial.printf("[KEYBOARD] terminal not active, skipping render (term=%p, active=%d)\n",
-                              term, term ? term->active : 0);
-            }
-            
-            last_key_event = evt;
+    if (needs_render) {
+        terminal_state *term = get_active_terminal();
+        if (term != NULL && term->active) {
+            KEYBOARD_DBG("[KEYBOARD] rendering terminal window...\n");
+            terminal_render_window(term);
         } else {
-            Serial.printf("[KEYBOARD] key is key_none, ignoring\n");
+            KEYBOARD_DBG("[KEYBOARD] terminal not active, skipping render (term=%p, active=%d)\n",
+                         term, term ? term->active : 0);
         }
     }
 }

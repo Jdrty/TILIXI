@@ -51,7 +51,7 @@
         
         // small delay to prevent CPU spinning in the main loop
         // note: This doesn't affect process scheduling, FreeRTOS handles that
-        delay_ms(10);
+        delay_ms(1);
     }
     
 #else
