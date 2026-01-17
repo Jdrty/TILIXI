@@ -109,7 +109,7 @@ clean:
 rebuild: clean all
 
 # ESP32/PlatformIO targets
-.PHONY: esp32-build esp32-upload esp32-monitor esp32-clean esp32-all esp32-small
+.PHONY: esp32-build esp32-upload esp32-monitor esp32-clean esp32-all esp32-small upload upload-clean
 
 # check if PlatformIO is available
 PIO := $(shell command -v pio 2> /dev/null)
@@ -160,6 +160,27 @@ esp32-small: esp32-all
 	@echo "(: opening serial monitor (ctrl+c to exit)..."
 	@echo "(: NOTE: You can now type in the serial monitor to interact with the TTY interface."
 	$(PIO) device monitor -e esp32-s3-devkitc-1
+
+upload:
+	@if [ -z "$(PIO)" ]; then \
+		echo "error: PlatformIO not found."; \
+		exit 1; \
+	fi
+	@python3 tools/gen_upload_payload.py
+	@echo "uploading upload utility to ESP32-S3..."
+	$(PIO) run -e esp32-s3-upload_files -t upload
+	@python3 tools/cleanup_upload_files.py
+	@rm -f src/filesystem/upload/upload_payload.h
+	@echo "(: upload complete"
+
+upload-clean:
+	@rm -f src/filesystem/upload/upload_payload.h
+	@if [ -z "$(PIO)" ]; then \
+		echo "(: upload clean complete"; \
+		exit 0; \
+	fi
+	$(PIO) run -e esp32-s3-upload_files -t clean
+	@echo "(: upload clean complete"
 
 # Filesystem initialization utility targets
 .PHONY: filesystem-build filesystem-upload

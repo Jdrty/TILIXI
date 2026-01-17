@@ -64,8 +64,10 @@ static inline void delay_ms(unsigned int ms) {
 // boot sequence state
 #ifdef ARDUINO
 static uint8_t boot_line_y = 20;  // current Y position for boot messages
+static uint8_t boot_logo_active = 0;
 #else
 static uint8_t boot_line_y = 0;  // unused on PC
+static uint8_t boot_logo_active = 0;
 #endif
 static uint8_t boot_initialized = 0;
 static uint8_t boot_complete = 0;  // track if boot sequence has finished
@@ -91,6 +93,15 @@ void boot_display_message(const char *step_name, boot_status_t status) {
     }
     
 #ifdef ARDUINO
+    if (boot_logo_active) {
+        // still log to serial, but don't draw over the logo
+        if (status == BOOT_STATUS_OK) {
+            DEBUG_PRINT("[BOOT] %-30s [ OK ]\n", step_name);
+        } else {
+            DEBUG_PRINT("[BOOT] %-30s [FAIL]\n", step_name);
+        }
+        return;
+    }
     // set cursor position for step name (left side)
     boot_tft_set_cursor(10, boot_line_y);
     boot_tft_set_text_size(2);
@@ -341,6 +352,12 @@ int boot_mount_sd(void) {
     }
     
     DEBUG_PRINT("[BOOT] SD card mounted successfully\n");
+    
+    if (!boot_logo_active) {
+        if (boot_show_logo_from_sd("/upload/bootlogo.rgb565")) {
+            boot_logo_active = 1;
+        }
+    }
     return 0;
 #else
     // PC: no SD card

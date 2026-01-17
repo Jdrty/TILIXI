@@ -5,6 +5,7 @@
 #include <math.h>
 #include "boot_splash.h"
 #include "ino_helper.h"
+#include "boot_sequence.h"
 
 // use ST7796S
 // if not available, try ST7789 as fallback (reason for this is that I may be changing to a different board later in the project which is unsupported)
@@ -106,6 +107,76 @@ void boot_refresh(void) {
     tft.setTextColor(ST77XX_BLACK, ST77XX_WHITE);
     tft.setTextWrap(false);
     
+}
+
+int boot_show_logo_from_sd(const char *path) {
+#ifdef ARDUINO
+    if (path == NULL || path[0] == '\0') {
+        return 0;
+    }
+    
+    int16_t width = tft.width();
+    int16_t height = tft.height();
+    if (width <= 0 || height <= 0) {
+        return 0;
+    }
+    
+    const int16_t max_chunk_lines = 20;
+    int16_t chunk_lines = max_chunk_lines;
+    if (chunk_lines > height) {
+        chunk_lines = height;
+    }
+    size_t chunk_bytes = (size_t)width * (size_t)chunk_lines * 2;
+    uint16_t *chunk = (uint16_t*)malloc(chunk_bytes);
+    if (chunk == NULL) {
+        return 0;
+    }
+    
+    boot_sd_switch_to_sd_spi();
+    File logo = SD.open(path, FILE_READ);
+    if (!logo) {
+        boot_sd_restore_tft_spi();
+        free(chunk);
+        return 0;
+    }
+    
+    size_t expected = (size_t)width * (size_t)height * 2;
+    if (logo.size() < expected) {
+        logo.close();
+        boot_sd_restore_tft_spi();
+        free(chunk);
+        return 0;
+    }
+    
+    tft.fillScreen(ST77XX_WHITE);
+    
+    int16_t y = 0;
+    while (y < height) {
+        int16_t lines = chunk_lines;
+        if (y + lines > height) {
+            lines = height - y;
+        }
+        size_t bytes_to_read = (size_t)width * (size_t)lines * 2;
+        
+        boot_sd_switch_to_sd_spi();
+        size_t read_bytes = logo.read((uint8_t*)chunk, bytes_to_read);
+        boot_sd_restore_tft_spi();
+        if (read_bytes != bytes_to_read) {
+            break;
+        }
+        
+        tft.drawRGBBitmap(0, y, chunk, width, lines);
+        
+        y += lines;
+    }
+    
+    logo.close();
+    free(chunk);
+    return 1;
+#else
+    (void)path;
+    return 0;
+#endif
 }
 
 // C wrapper functions for boot_sequence.c to access TFT
