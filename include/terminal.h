@@ -56,6 +56,8 @@ typedef struct {
     uint8_t input_len;  // length of input_line
     terminal_pipe_t pipes[max_pipe_commands];  // pipes for command chaining
     vfs_node_t *cwd;    // current working directory
+    const char *pipe_input;  // piped input buffer (owned by pipeline)
+    size_t pipe_input_len;
     
     // window geometry for display
     int16_t x;          // window x position
@@ -82,6 +84,9 @@ void terminal_write_string(terminal_state *term, const char *str);
 void terminal_write_line(terminal_state *term, const char *str);
 void terminal_clear(terminal_state *term);
 void terminal_newline(terminal_state *term);
+void terminal_capture_start(void);
+char *terminal_capture_stop(size_t *out_len);
+int terminal_capture_is_active(void);
 
 // terminal input
 void terminal_handle_key(terminal_state *term, char key);

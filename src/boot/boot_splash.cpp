@@ -64,7 +64,7 @@ void boot_init(void) {
     
     // initialize SPI - ESP32-S3 SPI.begin(SCK, MISO, MOSI, SS)
     SPI.begin(TFT_SCK, TFT_MISO, TFT_MOSI, TFT_CS);
-    delay(200);  // delay for display power-up
+    delay(800);  // delay for display power-up
     
     // init display
     #ifdef USE_ST7796S
@@ -76,7 +76,7 @@ void boot_init(void) {
     // init display - IMPORTANT: (320, 480) NOT (480, 320) per wiring notes
     tft.init(320, 480);
 
-    delay(200);
+    delay(800);
     
     // set rotation to 90 degrees (landscape/desktop orientation)
     tft.setRotation(1);

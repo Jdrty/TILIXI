@@ -2,6 +2,7 @@
 #include "terminal_cmd.h"
 #include <string.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 #ifdef ARDUINO
     // ESP32: use simple file descriptors (stubs for now, one day, one day...)
@@ -83,43 +84,56 @@ void terminal_execute_pipeline(terminal_state *term, command_tokens_t *tokens) {
     
     // split commands at pipe
     uint8_t cmd1_end = tokens->pipe_pos;
-    uint8_t cmd2_start = tokens->pipe_pos + 1;
+    uint8_t cmd2_start = tokens->pipe_pos;
     
     if (cmd1_end == 0 || cmd2_start >= tokens->token_count) {
         terminal_write_string(term, "Invalid pipe syntax\n");
         return;
     }
     
-    // create pipe
-    terminal_pipe_t *pipe = terminal_create_pipe();
-    if (pipe == NULL) {
-        terminal_write_string(term, "Failed to create pipe\n");
+    // execute first command (write to pipe)
+    command_tokens_t *cmd1_tokens = (command_tokens_t*)malloc(sizeof(command_tokens_t));
+    if (cmd1_tokens == NULL) {
+        terminal_write_string(term, "Failed to allocate pipe command\n");
         return;
     }
-    
-    // execute first command (write to pipe)
-    command_tokens_t cmd1_tokens = {0};
-    cmd1_tokens.token_count = cmd1_end;
+    memset(cmd1_tokens, 0, sizeof(*cmd1_tokens));
+    cmd1_tokens->token_count = cmd1_end;
     for (uint8_t i = 0; i < cmd1_end; i++) {
-        cmd1_tokens.tokens[i] = tokens->tokens[i];
+        cmd1_tokens->tokens[i] = tokens->tokens[i];
     }
     
     // execute second command (read from pipe)
-    command_tokens_t cmd2_tokens = {0};
-    cmd2_tokens.token_count = tokens->token_count - cmd2_start;
-    for (uint8_t i = 0; i < cmd2_tokens.token_count; i++) {
-        cmd2_tokens.tokens[i] = tokens->tokens[cmd2_start + i];
+    command_tokens_t *cmd2_tokens = (command_tokens_t*)malloc(sizeof(command_tokens_t));
+    if (cmd2_tokens == NULL) {
+        free(cmd1_tokens);
+        terminal_write_string(term, "Failed to allocate pipe command\n");
+        return;
+    }
+    memset(cmd2_tokens, 0, sizeof(*cmd2_tokens));
+    cmd2_tokens->token_count = tokens->token_count - cmd2_start;
+    for (uint8_t i = 0; i < cmd2_tokens->token_count; i++) {
+        cmd2_tokens->tokens[i] = tokens->tokens[cmd2_start + i];
     }
     
-    // for now, simple sequential execution
-    // later in implementation, will spawn processes and wire pipes.... fuck my lifee
-    terminal_write_string(term, "[PIPE] ");
-    terminal_execute_command(term, &cmd1_tokens);
-    terminal_write_string(term, " | ");
-    terminal_execute_command(term, &cmd2_tokens);
-    terminal_newline(term);
+    terminal_capture_start();
+    terminal_execute_command(term, cmd1_tokens);
+    size_t pipe_len = 0;
+    char *pipe_buf = terminal_capture_stop(&pipe_len);
+    free(cmd1_tokens);
+    if (pipe_buf == NULL) {
+        free(cmd2_tokens);
+        terminal_write_string(term, "pipe: failed to capture output\n");
+        return;
+    }
     
-    terminal_close_pipe(pipe);
+    term->pipe_input = pipe_buf;
+    term->pipe_input_len = pipe_len;
+    terminal_execute_command(term, cmd2_tokens);
+    term->pipe_input = NULL;
+    term->pipe_input_len = 0;
+    free(cmd2_tokens);
+    free(pipe_buf);
 }
 
 

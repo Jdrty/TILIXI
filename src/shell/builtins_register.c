@@ -16,6 +16,7 @@ extern const builtin_cmd cmd_reboot_def;
 extern const builtin_cmd cmd_run_def;
 extern const builtin_cmd cmd_clear_def;
 extern const builtin_cmd cmd_nano_def;
+extern const builtin_cmd cmd_wc_def;
 
 void builtins_register_all(void) {
     builtins_register_descriptor(&cmd_cd_def);
@@ -34,5 +35,6 @@ void builtins_register_all(void) {
     builtins_register_descriptor(&cmd_run_def);
     builtins_register_descriptor(&cmd_clear_def);
     builtins_register_descriptor(&cmd_nano_def);
+    builtins_register_descriptor(&cmd_wc_def);
 }
 

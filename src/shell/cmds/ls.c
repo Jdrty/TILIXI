@@ -69,6 +69,8 @@ int cmd_ls(terminal_state *term, int argc, char **argv) {
         return SHELL_ERR;
     }
     
+    int use_newlines = terminal_capture_is_active();
+    
     // iterate through entries
     int entry_count = 0;
     while (1) {
@@ -90,16 +92,23 @@ int cmd_ls(terminal_state *term, int argc, char **argv) {
         
         // result > 0 hence entry available
         if (iter->current_name != NULL) {
-            if (entry_count > 0) {
-                terminal_write_char(term, ' ');
+            if (use_newlines) {
+                terminal_write_string(term, iter->current_name);
+                terminal_newline(term);
+            } else {
+                if (entry_count > 0) {
+                    terminal_write_char(term, ' ');
+                }
+                terminal_write_string(term, iter->current_name);
             }
-            terminal_write_string(term, iter->current_name);
             entry_count++;
         }
     }
     
     // always print a newline after listing (even if directory is empty)
-    terminal_newline(term);
+    if (!use_newlines) {
+        terminal_newline(term);
+    }
     
     vfs_dir_iter_destroy(iter);
     if (dir_owned) {

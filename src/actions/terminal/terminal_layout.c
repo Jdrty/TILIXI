@@ -116,6 +116,8 @@ void new_terminal(void) {
     new_term->input_len = 0;
     new_term->history_count = 0;
     new_term->history_pos = 0;
+    new_term->pipe_input = NULL;
+    new_term->pipe_input_len = 0;
     
     // set initial working directory to root
     new_term->cwd = vfs_resolve("/");

@@ -25,6 +25,8 @@ void init_terminal_system(void) {
         terminals[i].history_count = 0;
         terminals[i].history_pos = 0;
         terminals[i].cwd = NULL;
+        terminals[i].pipe_input = NULL;
+        terminals[i].pipe_input_len = 0;
         memset(terminals[i].buffer, ' ', terminal_buffer_size);
         memset(terminals[i].input_line, 0, terminal_cols);
         terminals[i].x = 0;
