@@ -232,7 +232,7 @@ int cmd_rm(terminal_state *term, int argc, char **argv) {
     for (int i = 1; i < argc; i++) {
         const char *arg = argv[i];
         if (arg == NULL) {
-            return SHELL_ERR;
+    return SHELL_ERR;
         }
         
         if (parsing_opts && strcmp(arg, "--") == 0) {

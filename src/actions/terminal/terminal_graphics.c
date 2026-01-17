@@ -20,6 +20,7 @@ extern int passwd_is_active(void);
 
     // external terminal state (defined in terminal.c)
     extern terminal_state terminals[max_windows];
+    extern uint8_t selected_terminal;
 
     // render all active terminal windows
     // clears screen first to ensure clean rendering
@@ -51,13 +52,15 @@ extern int passwd_is_active(void);
         int16_t char_width = 6 * font_size;
         int16_t char_height = 8 * font_size;
         
-        // draw window border
+        // draw window border (highlight selected without new color)
+        uint16_t border_color = COLOR_BLACK;
         for (int i = 0; i < border; i++) {
             boot_tft_draw_rect(term->x + i, term->y + i, 
                               term->width - (i * 2), 
                               term->height - (i * 2), 
-                              COLOR_BLACK);
+                              border_color);
         }
+        // selection is indicated by cursor only
         
         // fill window background
         boot_tft_fill_rect(term->x + border, term->y + border, 
@@ -65,14 +68,23 @@ extern int passwd_is_active(void);
                           term->height - (border * 2), 
                           COLOR_WHITE);
         
+        int16_t image_cols = 0;
+        const int16_t image_padding_cols = 2;
+        if (term->fastfetch_image_active && term->fastfetch_image_pixels != NULL &&
+            term->fastfetch_image_w > 0 && term->fastfetch_image_h > 0 &&
+            term->fastfetch_line_count > 0) {
+            image_cols = (term->fastfetch_image_w + char_width - 1) / char_width;
+            image_cols += image_padding_cols;
+        }
+        
         // set text properties
         boot_tft_set_text_size(font_size);
         boot_tft_set_text_color(COLOR_BLACK, COLOR_WHITE);
         
         // calculate how many characters fit in window
-        int16_t text_x = term->x + border + padding;
+        int16_t base_text_x = term->x + border + padding;
         int16_t text_y = term->y + border + padding;
-        int16_t max_cols = (term->width - (border * 2) - (padding * 2)) / char_width;
+        int16_t base_max_cols = (term->width - (border * 2) - (padding * 2)) / char_width;
         int16_t max_rows = (term->height - (border * 2) - (padding * 2)) / char_height;
         
         // render terminal buffer (simplified - just show visible portion)
@@ -80,12 +92,48 @@ extern int passwd_is_active(void);
         if (term->cursor_row >= max_rows) {
             start_row = term->cursor_row - max_rows + 1;
         }
+
+        if (term->fastfetch_image_active && term->fastfetch_image_pixels != NULL &&
+            term->fastfetch_image_w > 0 && term->fastfetch_image_h > 0 &&
+            term->fastfetch_line_count > 0) {
+            int16_t ff_start = term->fastfetch_start_row;
+            int16_t ff_end = ff_start + term->fastfetch_line_count;
+            if (ff_end > start_row && ff_start < start_row + max_rows) {
+                int16_t visible_start = ff_start;
+                if (visible_start < start_row) {
+                    visible_start = start_row;
+                }
+                int16_t y_offset = (visible_start - start_row) * char_height;
+                boot_tft_draw_rgb565(term->x + border + padding,
+                                     term->y + border + padding + y_offset,
+                                     term->fastfetch_image_pixels,
+                                     term->fastfetch_image_w,
+                                     term->fastfetch_image_h);
+            }
+        }
         
         for (int16_t row = 0; row < max_rows && (start_row + row) < terminal_rows; row++) {
             int16_t y_pos = text_y + (row * char_height);
-            boot_tft_set_cursor(text_x, y_pos);
-            
             int16_t current_row = start_row + row;
+            uint8_t in_fastfetch = 0;
+            if (term->fastfetch_image_active && image_cols > 0 &&
+                term->fastfetch_line_count > 0) {
+                uint8_t ff_start = term->fastfetch_start_row;
+                uint8_t ff_end = ff_start + term->fastfetch_line_count;
+                if (current_row >= ff_start && current_row < ff_end) {
+                    in_fastfetch = 1;
+                }
+            }
+            int16_t row_text_x = base_text_x + (in_fastfetch ? (image_cols * char_width) : 0);
+            int16_t row_max_cols = base_max_cols;
+            if (in_fastfetch && image_cols > 0) {
+                if (row_max_cols > image_cols) {
+                    row_max_cols -= image_cols;
+                } else {
+                    row_max_cols = 0;
+                }
+            }
+            boot_tft_set_cursor(row_text_x, y_pos);
             
             // check if this is the current input line (where cursor is)
             if (!nano_is_active() && !firstboot_is_active() &&
@@ -112,7 +160,7 @@ extern int passwd_is_active(void);
                 
                 // render the line from buffer (which now has the correct content)
                 char line[terminal_cols + 1];
-                int16_t chars_to_show = max_cols;
+                int16_t chars_to_show = row_max_cols;
                 if (chars_to_show > terminal_cols) chars_to_show = terminal_cols;
                 
                 for (int16_t col = 0; col < chars_to_show; col++) {
@@ -126,15 +174,17 @@ extern int passwd_is_active(void);
                 }
                 line[chars_to_show] = '\0';
                 
-                char display_line[max_cols + 1];
-                strncpy(display_line, line, max_cols);
-                display_line[max_cols] = '\0';
-                boot_tft_print(display_line);
+                if (row_max_cols > 0) {
+                    char display_line[row_max_cols + 1];
+                    strncpy(display_line, line, row_max_cols);
+                    display_line[row_max_cols] = '\0';
+                    boot_tft_print(display_line);
+                }
             } else {
                 // render normal buffer line
                 char line[terminal_cols + 1];
                 int16_t line_start = current_row * terminal_cols;
-                int16_t chars_to_show = max_cols;
+                int16_t chars_to_show = row_max_cols;
                 if (chars_to_show > terminal_cols) chars_to_show = terminal_cols;
                 
                 for (int16_t col = 0; col < chars_to_show; col++) {
@@ -149,10 +199,12 @@ extern int passwd_is_active(void);
                 line[chars_to_show] = '\0';
                 
                 // print line (truncate if needed)
-                char display_line[max_cols + 1];
-                strncpy(display_line, line, max_cols);
-                display_line[max_cols] = '\0';
-                boot_tft_print(display_line);
+                if (row_max_cols > 0) {
+                    char display_line[row_max_cols + 1];
+                    strncpy(display_line, line, row_max_cols);
+                    display_line[row_max_cols] = '\0';
+                    boot_tft_print(display_line);
+                }
             }
         }
         
@@ -167,13 +219,23 @@ extern int passwd_is_active(void);
             // for simplicity, if cursor_row is the last row or matches the input line, use input_pos
             cursor_col_display = 2 + term->input_pos;  // "$ " is 2 chars, then input_pos
         }
+        if (term->fastfetch_image_active && image_cols > 0 &&
+            term->fastfetch_line_count > 0) {
+            uint8_t ff_start = term->fastfetch_start_row;
+            uint8_t ff_end = ff_start + term->fastfetch_line_count;
+            if (term->cursor_row >= ff_start && term->cursor_row < ff_end) {
+                cursor_col_display += image_cols;
+            }
+        }
         
-        int16_t cursor_x = text_x + (cursor_col_display * char_width);
-        int16_t cursor_y = text_y + ((term->cursor_row - start_row) * char_height);
-        if (cursor_y >= text_y && cursor_y < text_y + (max_rows * char_height) && 
-            cursor_x >= text_x && cursor_x < text_x + (max_cols * char_width)) {
-            // draw a thin underline cursor without overwriting the character
-            boot_tft_fill_rect(cursor_x, cursor_y + char_height - 1, char_width, 1, COLOR_BLACK);
+        if (term == &terminals[selected_terminal]) {
+            int16_t cursor_x = base_text_x + (cursor_col_display * char_width);
+            int16_t cursor_y = text_y + ((term->cursor_row - start_row) * char_height);
+            if (cursor_y >= text_y && cursor_y < text_y + (max_rows * char_height) && 
+                cursor_x >= base_text_x && cursor_x < base_text_x + (base_max_cols * char_width)) {
+                // draw a thin underline cursor without overwriting the character
+                boot_tft_fill_rect(cursor_x, cursor_y + char_height - 1, char_width, 1, COLOR_BLACK);
+            }
         }
     }
 #endif

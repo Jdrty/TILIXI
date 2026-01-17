@@ -1,4 +1,5 @@
 #pragma once
+#include <stddef.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -47,6 +48,8 @@ int boot_sd_available(void);
 int boot_sd_is_directory_empty(const char *path);
 int boot_sd_ensure_directory(const char *path);
 int boot_sd_ensure_file(const char *path, const char *content);
+int boot_sd_get_username(char *out_name, size_t out_len);
+int boot_sd_find_bootlogo(const char *username, char *out_path, size_t out_len);
 
 // boot completion status
 int boot_is_complete(void);

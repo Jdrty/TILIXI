@@ -27,6 +27,13 @@ void init_terminal_system(void) {
         terminals[i].cwd = NULL;
         terminals[i].pipe_input = NULL;
         terminals[i].pipe_input_len = 0;
+        terminals[i].fastfetch_image_active = 0;
+        terminals[i].fastfetch_image_path[0] = '\0';
+        terminals[i].fastfetch_image_pixels = NULL;
+        terminals[i].fastfetch_image_w = 0;
+        terminals[i].fastfetch_image_h = 0;
+        terminals[i].fastfetch_start_row = 0;
+        terminals[i].fastfetch_line_count = 0;
         memset(terminals[i].buffer, ' ', terminal_buffer_size);
         memset(terminals[i].input_line, 0, terminal_cols);
         terminals[i].x = 0;

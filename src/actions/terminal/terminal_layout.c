@@ -2,6 +2,7 @@
 #include "vfs.h"
 #include "debug_helper.h"
 #include <string.h>
+#include <limits.h>
 
 #ifdef ARDUINO
     #include "boot_splash.h"
@@ -86,6 +87,48 @@ static int validate_terminal_layout(void) {
     return 1;  // valid
 }
 
+static int set_cwd_from_passwd(terminal_state *term) {
+    if (term == NULL) {
+        return 0;
+    }
+    vfs_file_t *file = vfs_open("/etc/passwd", VFS_O_READ);
+    if (file == NULL) {
+        return 0;
+    }
+    char buf[128];
+    ssize_t read_bytes = vfs_read(file, buf, sizeof(buf) - 1);
+    vfs_close(file);
+    if (read_bytes <= 0) {
+        return 0;
+    }
+    buf[read_bytes] = '\0';
+    char *newline = strchr(buf, '\n');
+    if (newline) {
+        *newline = '\0';
+    }
+    char *colon = strchr(buf, ':');
+    if (colon) {
+        *colon = '\0';
+    }
+    if (buf[0] == '\0') {
+        return 0;
+    }
+    char path[256];
+    snprintf(path, sizeof(path), "/home/%s", buf);
+    vfs_node_t *home = vfs_resolve(path);
+    if (home == NULL || home->type != VFS_NODE_DIR) {
+        if (home != NULL) {
+            vfs_node_release(home);
+        }
+        return 0;
+    }
+    if (term->cwd != NULL) {
+        vfs_node_release(term->cwd);
+    }
+    term->cwd = home;
+    return 1;
+}
+
 void new_terminal(void) {
     if (window_count >= max_windows) {
         DEBUG_PRINT("[LIMIT] Max terminal count\n");
@@ -118,9 +161,17 @@ void new_terminal(void) {
     new_term->history_pos = 0;
     new_term->pipe_input = NULL;
     new_term->pipe_input_len = 0;
+    new_term->fastfetch_image_active = 0;
+    new_term->fastfetch_image_path[0] = '\0';
+    new_term->fastfetch_image_pixels = NULL;
+    new_term->fastfetch_image_w = 0;
+    new_term->fastfetch_image_h = 0;
+    new_term->fastfetch_start_row = 0;
+    new_term->fastfetch_line_count = 0;
     
-    // set initial working directory to root
+    // set initial working directory to root, then try user home from /etc/passwd
     new_term->cwd = vfs_resolve("/");
+    set_cwd_from_passwd(new_term);
     memset(new_term->buffer, ' ', terminal_buffer_size);
     memset(new_term->input_line, 0, terminal_cols);
     
@@ -272,6 +323,111 @@ void new_terminal(void) {
     
     DEBUG_PRINT("[ACTION] Terminal opened count is %d\n", window_count);
 }
+
+static void terminal_select_direction(int dx, int dy) {
+    if (window_count == 0) {
+        return;
+    }
+    
+    terminal_state *current = &terminals[selected_terminal];
+    int16_t left = current->x;
+    int16_t right = current->x + current->width;
+    int16_t top = current->y;
+    int16_t bottom = current->y + current->height;
+    
+    int best_idx = -1;
+    int best_overlap = -1;
+    int best_primary = INT_MAX;
+    int best_secondary = INT_MAX;
+    
+    for (uint8_t i = 0; i < max_windows; i++) {
+        if (!terminals[i].active || i == selected_terminal) {
+            continue;
+        }
+        terminal_state *cand = &terminals[i];
+        int16_t c_left = cand->x;
+        int16_t c_right = cand->x + cand->width;
+        int16_t c_top = cand->y;
+        int16_t c_bottom = cand->y + cand->height;
+        
+        int primary = INT_MAX;
+        int secondary = INT_MAX;
+        int overlap = 0;
+        
+        if (dx < 0) {
+            if (c_right > left) {
+                continue;
+            }
+            primary = left - c_right;
+            overlap = !(c_bottom <= top || c_top >= bottom);
+            if (!overlap) {
+                secondary = (c_bottom <= top) ? (top - c_bottom) : (c_top - bottom);
+            } else {
+                secondary = 0;
+            }
+        } else if (dx > 0) {
+            if (c_left < right) {
+                continue;
+            }
+            primary = c_left - right;
+            overlap = !(c_bottom <= top || c_top >= bottom);
+            if (!overlap) {
+                secondary = (c_bottom <= top) ? (top - c_bottom) : (c_top - bottom);
+            } else {
+                secondary = 0;
+            }
+        } else if (dy < 0) {
+            if (c_bottom > top) {
+                continue;
+            }
+            primary = top - c_bottom;
+            overlap = !(c_right <= left || c_left >= right);
+            if (!overlap) {
+                secondary = (c_right <= left) ? (left - c_right) : (c_left - right);
+            } else {
+                secondary = 0;
+            }
+        } else if (dy > 0) {
+            if (c_top < bottom) {
+                continue;
+            }
+            primary = c_top - bottom;
+            overlap = !(c_right <= left || c_left >= right);
+            if (!overlap) {
+                secondary = (c_right <= left) ? (left - c_right) : (c_left - right);
+            } else {
+                secondary = 0;
+            }
+        }
+        
+        if (primary < 0) {
+            continue;
+        }
+        
+        if (overlap > best_overlap ||
+            (overlap == best_overlap && primary < best_primary) ||
+            (overlap == best_overlap && primary == best_primary && secondary < best_secondary)) {
+            best_overlap = overlap;
+            best_primary = primary;
+            best_secondary = secondary;
+            best_idx = i;
+        }
+    }
+    
+    if (best_idx >= 0) {
+        selected_terminal = best_idx;
+        active_terminal = best_idx;
+#ifdef ARDUINO
+        extern void terminal_render_all(void);
+        terminal_render_all();
+#endif
+    }
+}
+
+void terminal_select_left(void) { terminal_select_direction(-1, 0); }
+void terminal_select_right(void) { terminal_select_direction(1, 0); }
+void terminal_select_up(void) { terminal_select_direction(0, -1); }
+void terminal_select_down(void) { terminal_select_direction(0, 1); }
 
 void close_terminal(void) {
     if (window_count == 0) {

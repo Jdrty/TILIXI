@@ -483,6 +483,68 @@ static const vfs_ops_t sd_ops = {
     .dir_remove = sd_dir_remove
 };
 
+static int normalize_absolute_path(const char *in_path, char *out_path) {
+    if (in_path == NULL || out_path == NULL || in_path[0] != '/') {
+        return 0;
+    }
+    size_t out_len = 0;
+    out_path[out_len++] = '/';
+    out_path[out_len] = '\0';
+    
+    const char *p = in_path;
+    while (*p == '/') {
+        p++;
+    }
+    
+    while (*p != '\0') {
+        char segment[MAX_PATH_LEN];
+        size_t seg_len = 0;
+        while (*p != '\0' && *p != '/') {
+            if (seg_len + 1 >= sizeof(segment)) {
+                return 0;
+            }
+            segment[seg_len++] = *p++;
+        }
+        segment[seg_len] = '\0';
+        while (*p == '/') {
+            p++;
+        }
+        
+        if (seg_len == 0 || strcmp(segment, ".") == 0) {
+            continue;
+        }
+        if (strcmp(segment, "..") == 0) {
+            if (out_len > 1) {
+                size_t i = out_len - 1;
+                if (out_path[i] == '/' && i > 0) {
+                    i--;
+                }
+                while (i > 0 && out_path[i] != '/') {
+                    i--;
+                }
+                out_len = i + 1;
+                out_path[out_len] = '\0';
+            }
+            continue;
+        }
+        
+        if (out_len + seg_len + 1 >= MAX_PATH_LEN) {
+            return 0;
+        }
+        if (out_len > 1 && out_path[out_len - 1] != '/') {
+            out_path[out_len++] = '/';
+        }
+        memcpy(out_path + out_len, segment, seg_len);
+        out_len += seg_len;
+        out_path[out_len] = '\0';
+    }
+    
+    if (out_len > 1 && out_path[out_len - 1] == '/') {
+        out_path[out_len - 1] = '\0';
+    }
+    return 1;
+}
+
 // helper to get full path from base and relative path
 // returns a pointer to a path stored in the node cache (persists for node lifetime)
 static const char* resolve_path_to_node_cache(vfs_node_t *base, const char *path, char *out_path) {
@@ -490,79 +552,37 @@ static const char* resolve_path_to_node_cache(vfs_node_t *base, const char *path
         return NULL;
     }
     
-    // abs path
+    char raw_path[MAX_PATH_LEN];
     if (path[0] == '/') {
-        if (strlen(path) >= MAX_PATH_LEN) {
+        if (strlen(path) >= sizeof(raw_path)) {
             return NULL;
         }
-        strncpy(out_path, path, MAX_PATH_LEN - 1);
-        out_path[MAX_PATH_LEN - 1] = '\0';
-        return out_path;
-    }
-    
-    // get base path
-    const char *base_path = "/";
-    if (base != NULL && base->backend_data != NULL) {
-        base_path = (const char*)base->backend_data;
-    }
-    
-    // handle "." and ".."
-    if (strcmp(path, ".") == 0) {
-        if (strlen(base_path) >= MAX_PATH_LEN) {
+        strncpy(raw_path, path, sizeof(raw_path) - 1);
+        raw_path[sizeof(raw_path) - 1] = '\0';
+    } else {
+        const char *base_path = "/";
+        if (base != NULL && base->backend_data != NULL) {
+            base_path = (const char*)base->backend_data;
+        }
+        size_t base_len = strlen(base_path);
+        size_t path_len = strlen(path);
+        if (base_len + path_len + 2 >= sizeof(raw_path)) {
             return NULL;
         }
-        strncpy(out_path, base_path, MAX_PATH_LEN - 1);
-        out_path[MAX_PATH_LEN - 1] = '\0';
-        return out_path;
+        strncpy(raw_path, base_path, sizeof(raw_path) - 1);
+        raw_path[sizeof(raw_path) - 1] = '\0';
+        if (base_len == 0 || raw_path[base_len - 1] != '/') {
+            raw_path[base_len] = '/';
+            raw_path[base_len + 1] = '\0';
+            base_len++;
+        }
+        strncpy(raw_path + base_len, path, sizeof(raw_path) - base_len - 1);
+        raw_path[base_len + path_len] = '\0';
     }
     
-    if (strcmp(path, "..") == 0) {
-        // find parent directory
-        if (strcmp(base_path, "/") == 0) {
-            // already at root
-            strncpy(out_path, "/", MAX_PATH_LEN - 1);
-            out_path[MAX_PATH_LEN - 1] = '\0';
-            return out_path;
-        }
-        
-        // find last '/'
-        const char *last_slash = strrchr(base_path, '/');
-        if (last_slash == base_path) {
-            // parent is root
-            strncpy(out_path, "/", MAX_PATH_LEN - 1);
-            out_path[MAX_PATH_LEN - 1] = '\0';
-            return out_path;
-        }
-        
-        // copy up to last slash
-        size_t len = last_slash - base_path;
-        if (len >= MAX_PATH_LEN) {
-            return NULL;
-        }
-        strncpy(out_path, base_path, len);
-        out_path[len] = '\0';
-        return out_path;
-    }
-    
-    // relative path - concatenate base and path
-    size_t base_len = strlen(base_path);
-    size_t path_len = strlen(path);
-    
-    if (base_len + path_len + 2 >= MAX_PATH_LEN) {
+    if (!normalize_absolute_path(raw_path, out_path)) {
         return NULL;
     }
-    
-    strncpy(out_path, base_path, MAX_PATH_LEN - 1);
-    
-    // add '/' if base doesn't end with one
-    if (base_path[base_len - 1] != '/') {
-        out_path[base_len] = '/';
-        base_len++;
-    }
-    
-    strncpy(out_path + base_len, path, MAX_PATH_LEN - base_len - 1);
-    out_path[base_len + path_len] = '\0';
-    
     return out_path;
 }
 

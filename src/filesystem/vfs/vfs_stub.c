@@ -178,57 +178,107 @@ vfs_node_t* vfs_resolve(const char *path) {
     return NULL;
 }
 
+static int normalize_absolute_path(const char *in_path, char *out_path, size_t out_len) {
+    if (in_path == NULL || out_path == NULL || out_len == 0 || in_path[0] != '/') {
+        return 0;
+    }
+    size_t written = 0;
+    out_path[written++] = '/';
+    out_path[written] = '\0';
+    
+    const char *p = in_path;
+    while (*p == '/') {
+        p++;
+    }
+    
+    while (*p != '\0') {
+        char segment[64];
+        size_t seg_len = 0;
+        while (*p != '\0' && *p != '/') {
+            if (seg_len + 1 >= sizeof(segment)) {
+                return 0;
+            }
+            segment[seg_len++] = *p++;
+        }
+        segment[seg_len] = '\0';
+        while (*p == '/') {
+            p++;
+        }
+        
+        if (seg_len == 0 || strcmp(segment, ".") == 0) {
+            continue;
+        }
+        if (strcmp(segment, "..") == 0) {
+            if (written > 1) {
+                size_t i = written - 1;
+                if (out_path[i] == '/' && i > 0) {
+                    i--;
+                }
+                while (i > 0 && out_path[i] != '/') {
+                    i--;
+                }
+                written = i + 1;
+                out_path[written] = '\0';
+            }
+            continue;
+        }
+        
+        if (written + seg_len + 1 >= out_len) {
+            return 0;
+        }
+        if (written > 1 && out_path[written - 1] != '/') {
+            out_path[written++] = '/';
+        }
+        memcpy(out_path + written, segment, seg_len);
+        written += seg_len;
+        out_path[written] = '\0';
+    }
+    
+    if (written > 1 && out_path[written - 1] == '/') {
+        out_path[written - 1] = '\0';
+    }
+    return 1;
+}
+
 vfs_node_t* vfs_resolve_at(vfs_node_t *base, const char *path) {
     if (path == NULL) {
         return NULL;
     }
     
+    char raw_path[128];
     if (path[0] == '/') {
-        return vfs_resolve(path);
-    }
-    
-    if (base == NULL) {
-        return vfs_resolve("/");
-    }
-    
-    if (strcmp(path, ".") == 0) {
-        base->refcount++;
-        return base;
-    }
-    
-    if (strcmp(path, "..") == 0) {
-        // Determine parent based on current directory
-        if (base->backend_data == (void*)2) {
-            // subdir -> parent is dir1
-            dir1_node.refcount++;
-            return &dir1_node;
-        } else if (base->backend_data == (void*)1) {
-            // dir1 -> parent is root
-            root_node.refcount++;
-            return &root_node;
-        } else {
-            // root -> parent is root (root has no parent)
-            root_node.refcount++;
-            return &root_node;
+        strncpy(raw_path, path, sizeof(raw_path) - 1);
+        raw_path[sizeof(raw_path) - 1] = '\0';
+    } else {
+        const char *base_path = "/";
+        if (base != NULL) {
+            if (base->backend_data == (void*)1) {
+                base_path = "/dir1";
+            } else if (base->backend_data == (void*)2) {
+                base_path = "/dir1/subdir";
+            }
         }
+        size_t base_len = strlen(base_path);
+        size_t path_len = strlen(path);
+        if (base_len + path_len + 2 >= sizeof(raw_path)) {
+            return NULL;
+        }
+        strncpy(raw_path, base_path, sizeof(raw_path) - 1);
+        raw_path[sizeof(raw_path) - 1] = '\0';
+        if (base_len == 0 || raw_path[base_len - 1] != '/') {
+            raw_path[base_len] = '/';
+            raw_path[base_len + 1] = '\0';
+            base_len++;
+        }
+        strncpy(raw_path + base_len, path, sizeof(raw_path) - base_len - 1);
+        raw_path[base_len + path_len] = '\0';
     }
     
-    // Handle subdirectory names
-    if (base->backend_data == NULL) {
-        // we're in root, check for "dir1"
-        if (strcmp(path, "dir1") == 0) {
-            dir1_node.refcount++;
-            return &dir1_node;
-        }
-    } else if (base->backend_data == (void*)1) {
-        // we're in dir1, check for "subdir"
-        if (strcmp(path, "subdir") == 0) {
-            subdir_node.refcount++;
-            return &subdir_node;
-        }
+    char normalized[128];
+    if (!normalize_absolute_path(raw_path, normalized, sizeof(normalized))) {
+        return NULL;
     }
-    
-    return NULL;
+    return vfs_resolve(normalized);
 }
 
 void vfs_node_release(vfs_node_t *node) {

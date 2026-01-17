@@ -109,6 +109,74 @@ void boot_refresh(void) {
     
 }
 
+int boot_draw_rgb565_scaled(const char *path, int16_t x, int16_t y,
+                            int16_t width, int16_t height) {
+#ifdef ARDUINO
+    if (path == NULL || path[0] == '\0' || width <= 0 || height <= 0) {
+        return 0;
+    }
+    
+    const int16_t src_w = 480;
+    const int16_t src_h = 320;
+    const size_t expected = (size_t)src_w * (size_t)src_h * 2;
+    
+    boot_sd_switch_to_sd_spi();
+    File logo = SD.open(path, FILE_READ);
+    if (!logo) {
+        boot_sd_restore_tft_spi();
+        return 0;
+    }
+    if ((size_t)logo.size() < expected) {
+        logo.close();
+        boot_sd_restore_tft_spi();
+        return 0;
+    }
+    
+    size_t src_row_bytes = (size_t)src_w * 2;
+    uint8_t *src_row = (uint8_t*)malloc(src_row_bytes);
+    uint16_t *dest_row = (uint16_t*)malloc((size_t)width * 2);
+    if (src_row == NULL || dest_row == NULL) {
+        if (src_row) free(src_row);
+        if (dest_row) free(dest_row);
+        logo.close();
+        boot_sd_restore_tft_spi();
+        return 0;
+    }
+    
+    for (int16_t dy = 0; dy < height; dy++) {
+        int16_t sy = (int16_t)((dy * src_h) / height);
+        size_t offset = (size_t)sy * src_row_bytes;
+        boot_sd_switch_to_sd_spi();
+        logo.seek(offset);
+        size_t read_bytes = logo.read(src_row, src_row_bytes);
+        boot_sd_restore_tft_spi();
+        if (read_bytes != src_row_bytes) {
+            break;
+        }
+        
+        for (int16_t dx = 0; dx < width; dx++) {
+            int16_t sx = (int16_t)((dx * src_w) / width);
+            size_t idx = (size_t)sx * 2;
+            uint16_t pix = (uint16_t)src_row[idx] | ((uint16_t)src_row[idx + 1] << 8);
+            dest_row[dx] = pix;
+        }
+        tft.drawRGBBitmap(x, y + dy, dest_row, width, 1);
+    }
+    
+    free(src_row);
+    free(dest_row);
+    logo.close();
+    return 1;
+#else
+    (void)path;
+    (void)x;
+    (void)y;
+    (void)width;
+    (void)height;
+    return 0;
+#endif
+}
+
 int boot_show_logo_from_sd(const char *path) {
 #ifdef ARDUINO
     if (path == NULL || path[0] == '\0') {
@@ -213,6 +281,14 @@ extern "C" {
     
     void boot_tft_draw_rect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t color) {
         tft.drawRect(x, y, w, h, color);
+    }
+
+    void boot_tft_draw_rgb565(int16_t x, int16_t y, const uint16_t *data,
+                              int16_t width, int16_t height) {
+        if (data == NULL || width <= 0 || height <= 0) {
+            return;
+        }
+        tft.drawRGBBitmap(x, y, data, width, height);
     }
     
     int16_t boot_tft_get_width(void) {

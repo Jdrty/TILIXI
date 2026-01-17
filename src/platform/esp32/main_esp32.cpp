@@ -31,8 +31,14 @@
         init_actions();
         
         // register hotkeys
-        register_key(mod_ctrl, key_enter, "terminal");
+        register_key(mod_ctrl, key_n, "terminal");
         register_key(mod_ctrl, key_q, "close_terminal");
+        register_key(mod_ctrl, key_equals, "terminal");
+        register_key(mod_ctrl, key_left, "select_left");
+        register_key(mod_ctrl, key_right, "select_right");
+        register_key(mod_ctrl, key_up, "select_up");
+        register_key(mod_ctrl, key_down, "select_down");
+        register_key(mod_ctrl, key_dash, "close_terminal");
         // add more hotkeys as needed
     }
     

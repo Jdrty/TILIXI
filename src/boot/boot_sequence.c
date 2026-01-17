@@ -366,8 +366,13 @@ int boot_mount_sd(void) {
     DEBUG_PRINT("[BOOT] SD card mounted successfully\n");
     
     if (!boot_logo_active) {
-        if (boot_show_logo_from_sd("/upload/bootlogo.rgb565")) {
-            boot_logo_active = 1;
+        char username[64];
+        char logo_path[256];
+        if (boot_sd_get_username(username, sizeof(username)) &&
+            boot_sd_find_bootlogo(username, logo_path, sizeof(logo_path))) {
+            if (boot_show_logo_from_sd(logo_path)) {
+                boot_logo_active = 1;
+            }
         }
     }
     return 0;
@@ -405,8 +410,10 @@ int boot_init_sd_filesystem(void) {
         boot_sd_ensure_directory("/dev/pipe");
         boot_sd_ensure_directory("/etc");
         boot_sd_ensure_directory("/home");
-        boot_sd_ensure_directory("/home/user");
-        boot_sd_ensure_directory("/home/user/documents");
+        if (boot_sd_is_directory_empty("/home")) {
+            boot_sd_ensure_directory("/home/user");
+            boot_sd_ensure_directory("/home/user/documents");
+        }
         boot_sd_ensure_directory("/proc");
         boot_sd_ensure_directory("/proc/tasks");
         boot_sd_ensure_directory("/run");
@@ -455,10 +462,12 @@ int boot_init_sd_filesystem(void) {
         boot_sd_ensure_file("/etc/keymap.conf", NULL);
         boot_sd_ensure_file("/etc/motd", NULL);
         
-        // create all required files in /home/user
-        boot_sd_ensure_file("/home/user/.profile", NULL);
-        boot_sd_ensure_file("/home/user/.history", NULL);
-        boot_sd_ensure_file("/home/user/.editorrc", NULL);
+        // create all required files in /home/user (only if we created it)
+        if (boot_sd_is_directory_empty("/home/user") == 0) {
+            boot_sd_ensure_file("/home/user/.profile", NULL);
+            boot_sd_ensure_file("/home/user/.history", NULL);
+            boot_sd_ensure_file("/home/user/.editorrc", NULL);
+        }
         
         // create all required files in /proc
         boot_sd_ensure_file("/proc/uptime", NULL);
@@ -496,8 +505,10 @@ int boot_init_sd_filesystem(void) {
         boot_sd_ensure_directory("/dev/pipe");
         boot_sd_ensure_directory("/etc");
         boot_sd_ensure_directory("/home");
-        boot_sd_ensure_directory("/home/user");
-        boot_sd_ensure_directory("/home/user/documents");
+        if (boot_sd_is_directory_empty("/home")) {
+            boot_sd_ensure_directory("/home/user");
+            boot_sd_ensure_directory("/home/user/documents");
+        }
         boot_sd_ensure_directory("/proc");
         boot_sd_ensure_directory("/proc/tasks");
         boot_sd_ensure_directory("/run");
@@ -546,10 +557,12 @@ int boot_init_sd_filesystem(void) {
         boot_sd_ensure_file("/etc/keymap.conf", NULL);
         boot_sd_ensure_file("/etc/motd", NULL);
         
-        // verify and create missing files in /home/user
-        boot_sd_ensure_file("/home/user/.profile", NULL);
-        boot_sd_ensure_file("/home/user/.history", NULL);
-        boot_sd_ensure_file("/home/user/.editorrc", NULL);
+        // verify and create missing files in /home/user only if /home/user exists
+        if (boot_sd_is_directory_empty("/home/user") == 0) {
+            boot_sd_ensure_file("/home/user/.profile", NULL);
+            boot_sd_ensure_file("/home/user/.history", NULL);
+            boot_sd_ensure_file("/home/user/.editorrc", NULL);
+        }
         
         // verify and create missing files in /proc
         boot_sd_ensure_file("/proc/uptime", NULL);

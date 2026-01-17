@@ -179,6 +179,108 @@ int boot_sd_ensure_file(const char *path, const char *content) {
     return 0;
 }
 
+int boot_sd_get_username(char *out_name, size_t out_len) {
+    if (out_name == NULL || out_len == 0) {
+        return 0;
+    }
+    out_name[0] = '\0';
+    
+    boot_sd_switch_to_sd_spi();
+    File f = SD.open("/etc/passwd", FILE_READ);
+    if (!f) {
+        boot_sd_restore_tft_spi();
+        return 0;
+    }
+    
+    char buf[128];
+    size_t read_len = f.readBytesUntil('\n', buf, sizeof(buf) - 1);
+    f.close();
+    boot_sd_restore_tft_spi();
+    if (read_len == 0) {
+        return 0;
+    }
+    buf[read_len] = '\0';
+    char *colon = strchr(buf, ':');
+    if (colon != NULL) {
+        *colon = '\0';
+    }
+    if (buf[0] == '\0') {
+        return 0;
+    }
+    strncpy(out_name, buf, out_len - 1);
+    out_name[out_len - 1] = '\0';
+    return 1;
+}
+
+static int has_rgb565_ext(const char *name) {
+    size_t len = strlen(name);
+    const char *ext = ".rgb565";
+    size_t ext_len = strlen(ext);
+    if (len < ext_len) {
+        return 0;
+    }
+    return strcmp(name + len - ext_len, ext) == 0;
+}
+
+static const char *basename_ptr(const char *path) {
+    const char *slash = strrchr(path, '/');
+    return slash ? slash + 1 : path;
+}
+
+int boot_sd_find_bootlogo(const char *username, char *out_path, size_t out_len) {
+    if (username == NULL || username[0] == '\0' || out_path == NULL || out_len == 0) {
+        return 0;
+    }
+    out_path[0] = '\0';
+    
+    char dir_path[128];
+    snprintf(dir_path, sizeof(dir_path), "/home/%s/.config/boot", username);
+    
+    boot_sd_switch_to_sd_spi();
+    File dir = SD.open(dir_path);
+    if (!dir || !dir.isDirectory()) {
+        if (dir) {
+            dir.close();
+        }
+        boot_sd_restore_tft_spi();
+        return 0;
+    }
+    
+    char best_name[64] = {0};
+    char best_path[256] = {0};
+    
+    while (true) {
+        File entry = dir.openNextFile();
+        if (!entry) {
+            break;
+        }
+        const char *name = entry.name();
+        const char *base = basename_ptr(name);
+        if (has_rgb565_ext(base)) {
+            if (best_name[0] == '\0' || strcmp(base, best_name) < 0) {
+                strncpy(best_name, base, sizeof(best_name) - 1);
+                best_name[sizeof(best_name) - 1] = '\0';
+                if (name[0] == '/') {
+                    strncpy(best_path, name, sizeof(best_path) - 1);
+                    best_path[sizeof(best_path) - 1] = '\0';
+                } else {
+                    snprintf(best_path, sizeof(best_path), "%s/%s", dir_path, base);
+                }
+            }
+        }
+        entry.close();
+    }
+    dir.close();
+    boot_sd_restore_tft_spi();
+    
+    if (best_path[0] == '\0') {
+        return 0;
+    }
+    strncpy(out_path, best_path, out_len - 1);
+    out_path[out_len - 1] = '\0';
+    return 1;
+}
+
 } // extern "C"
 
 #else
@@ -191,6 +293,8 @@ int boot_sd_available(void) { return 0; }
 int boot_sd_is_directory_empty(const char *path) { (void)path; return 1; }
 int boot_sd_ensure_directory(const char *path) { (void)path; return 0; }
 int boot_sd_ensure_file(const char *path, const char *content) { (void)path; (void)content; return 0; }
+int boot_sd_get_username(char *out_name, size_t out_len) { (void)out_name; (void)out_len; return 0; }
+int boot_sd_find_bootlogo(const char *username, char *out_path, size_t out_len) { (void)username; (void)out_path; (void)out_len; return 0; }
 }
 #endif
 

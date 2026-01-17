@@ -134,11 +134,13 @@ void keyboard_esp_init(void) {
     ESP_INFO("Serial input enabled - you can type in the serial monitor!");
 }
 
-static void keyboard_esp_handle_char(char c, uint8_t *escape_state, bool *needs_render) {
+static void keyboard_esp_handle_char(char c, uint8_t *escape_state,
+                                     uint8_t *csi_mod, bool *needs_render) {
     // handle ANSI escape sequences (arrow keys) without printing escape bytes
     if (*escape_state == 1) {
         if (c == '[' || c == 'O') {
             *escape_state = 2;
+            *csi_mod = 0;
         } else {
             *escape_state = 0;
         }
@@ -147,11 +149,14 @@ static void keyboard_esp_handle_char(char c, uint8_t *escape_state, bool *needs_
     if (*escape_state == 2) {
         if ((c >= '0' && c <= '9') || c == ';') {
             *escape_state = 3;
+            if (c == '5') {
+                *csi_mod = mod_ctrl;
+            }
             return;
         }
         *escape_state = 0;
         key_event evt;
-        evt.modifiers = 0;
+        evt.modifiers = *csi_mod;
         evt.key = key_none;
         switch (c) {
             case 'A': evt.key = key_up; break;
@@ -170,6 +175,9 @@ static void keyboard_esp_handle_char(char c, uint8_t *escape_state, bool *needs_
     }
     if (*escape_state == 3) {
         if (c >= '0' && c <= '9') {
+            if (c == '5') {
+                *csi_mod = mod_ctrl;
+            }
             return;
         }
         if (c == ';') {
@@ -177,7 +185,7 @@ static void keyboard_esp_handle_char(char c, uint8_t *escape_state, bool *needs_
         }
         *escape_state = 0;
         key_event evt;
-        evt.modifiers = 0;
+        evt.modifiers = *csi_mod;
         evt.key = key_none;
         switch (c) {
             case 'A': evt.key = key_up; break;
@@ -303,12 +311,13 @@ static void keyboard_esp_handle_char(char c, uint8_t *escape_state, bool *needs_
 // reads from Serial (serial monitor) and converts to key events
 void keyboard_esp_scan(void) {
     static uint8_t escape_state = 0; // 0=none, 1=got ESC, 2=got ESC+[ or ESC+O, 3=CSI params
+    static uint8_t csi_mod = 0;
     bool needs_render = false;
     
     // read and process all available bytes to avoid 1-byte-per-scan bottleneck
     while (Serial.available() > 0) {
         char c = Serial.read();
-        keyboard_esp_handle_char(c, &escape_state, &needs_render);
+        keyboard_esp_handle_char(c, &escape_state, &csi_mod, &needs_render);
     }
 
     if (needs_render) {

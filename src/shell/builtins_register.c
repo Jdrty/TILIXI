@@ -18,6 +18,7 @@ extern const builtin_cmd cmd_clear_def;
 extern const builtin_cmd cmd_nano_def;
 extern const builtin_cmd cmd_wc_def;
 extern const builtin_cmd cmd_passwd_def;
+extern const builtin_cmd cmd_fastfetch_def;
 
 void builtins_register_all(void) {
     builtins_register_descriptor(&cmd_cd_def);
@@ -38,5 +39,6 @@ void builtins_register_all(void) {
     builtins_register_descriptor(&cmd_nano_def);
     builtins_register_descriptor(&cmd_wc_def);
     builtins_register_descriptor(&cmd_passwd_def);
+    builtins_register_descriptor(&cmd_fastfetch_def);
 }
 

@@ -58,6 +58,13 @@ typedef struct {
     vfs_node_t *cwd;    // current working directory
     const char *pipe_input;  // piped input buffer (owned by pipeline)
     size_t pipe_input_len;
+    uint8_t fastfetch_image_active;
+    char fastfetch_image_path[256];
+    uint16_t *fastfetch_image_pixels;
+    uint16_t fastfetch_image_w;
+    uint16_t fastfetch_image_h;
+    uint8_t fastfetch_start_row;
+    uint8_t fastfetch_line_count;
     
     // window geometry for display
     int16_t x;          // window x position
@@ -96,6 +103,10 @@ void terminal_handle_arrow_up(terminal_state *term);
 void terminal_handle_arrow_down(terminal_state *term);
 void terminal_handle_arrow_left(terminal_state *term);
 void terminal_handle_arrow_right(terminal_state *term);
+void terminal_select_left(void);
+void terminal_select_right(void);
+void terminal_select_up(void);
+void terminal_select_down(void);
 
 // command parsing and execution
 void terminal_parse_command(const char *input, command_tokens_t *out_tokens);

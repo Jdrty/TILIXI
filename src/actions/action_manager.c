@@ -36,6 +36,10 @@ void execute_action(const char *name) {
 void init_actions(void) {
     register_action("terminal", new_terminal);
     register_action("close_terminal", close_terminal);
+    register_action("select_left", terminal_select_left);
+    register_action("select_right", terminal_select_right);
+    register_action("select_up", terminal_select_up);
+    register_action("select_down", terminal_select_down);
     
     // register process-related actions
     register_process_actions();
