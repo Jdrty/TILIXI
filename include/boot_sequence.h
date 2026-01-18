@@ -42,6 +42,7 @@ int boot_start_event_loop(void);
 
 // SD card wrapper functions
 int boot_sd_mount(void);
+int boot_sd_unmount(void);
 void boot_sd_restore_tft_spi(void);
 void boot_sd_switch_to_sd_spi(void);
 int boot_sd_available(void);

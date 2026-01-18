@@ -21,8 +21,14 @@ extern uint8_t selected_terminal;
 
 #define MAX_HORIZONTAL_TERMINALS 4  // maximum terminals side-by-side (like Hyprland)
 
+#ifdef __GNUC__
+#define UNUSED __attribute__((unused))
+#else
+#define UNUSED
+#endif
+
 // count how many terminals are horizontally aligned at a given Y position
-static uint8_t count_horizontal_terminals_at_y(int16_t y, int16_t tolerance) {
+static uint8_t UNUSED count_horizontal_terminals_at_y(int16_t y, int16_t tolerance) {
     uint8_t count = 0;
     for (uint8_t i = 0; i < max_windows; i++) {
         if (terminals[i].active) {
@@ -36,7 +42,7 @@ static uint8_t count_horizontal_terminals_at_y(int16_t y, int16_t tolerance) {
 }
 
 // validate terminal geometry - check for large gaps or invalid positions
-static int validate_terminal_layout(void) {
+static int UNUSED validate_terminal_layout(void) {
 #ifdef ARDUINO
     int16_t screen_width = boot_tft_get_width();
     int16_t screen_height = boot_tft_get_height();

@@ -110,7 +110,8 @@ void test_terminal_parse_command(void) {
     setup_terminal_full();
     printf("  test_terminal_parse_command... ");
     
-    command_tokens_t tokens = terminal_parse_command("echo hello world");
+    command_tokens_t tokens;
+    terminal_parse_command("echo hello world", &tokens);
     assert(tokens.token_count == 3);
     assert(strcmp(tokens.tokens[0], "echo") == 0);
     assert(strcmp(tokens.tokens[1], "hello") == 0);
@@ -125,7 +126,8 @@ void test_terminal_parse_pipe(void) {
     setup_terminal_full();
     printf("  test_terminal_parse_pipe... ");
     
-    command_tokens_t tokens = terminal_parse_command("echo hello | grep hello");
+    command_tokens_t tokens;
+    terminal_parse_command("echo hello | grep hello", &tokens);
     assert(tokens.has_pipe == 1);
     assert(tokens.pipe_pos < tokens.token_count);
     

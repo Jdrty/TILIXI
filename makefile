@@ -90,6 +90,14 @@ test: $(TEST_BINS)
 	@echo "⢰⠇⠀⠀⠀⠀⠀⠀⠀⢸⠀⡏⣿⠀⠀⠀⠀⢣⢇⠀⠑⣄⠀⠀⠸⡄⠀⠀⠘⡄⠀⠀⠸⡀⢸⠁⠀⡾⢰⡏⢳⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀"
 	@echo "all tests passed!"
 
+# shell script tests
+.PHONY: testsh
+testsh: $(BUILD_DIR)/test_shell_run_script
+	@echo "running shell script tests...\n"
+	@$(BUILD_DIR)/test_shell_run_script
+	@echo ""
+	@echo "all shell script tests passed!"
+
 # individual test target - FIX: use $(TESTS_DIR)/test_$*.c instead of $<
 $(BUILD_DIR)/test_%: $(BUILD_DIR) $(TESTS_DIR)/test_%.c $(SRC_LIB)
 	$(CC) $(CFLAGS) $(DEBUG) $(INCLUDE) $(TESTS_DIR)/test_$*.c $(SRC_LIB) -o $@

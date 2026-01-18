@@ -109,6 +109,18 @@ void boot_refresh(void) {
     
 }
 
+void boot_tft_shutdown(void) {
+#ifdef ARDUINO
+    // blank the display before powering down
+    tft.fillScreen(ST77XX_BLACK);
+    delay(50);
+    if (TFT_RST >= 0) {
+        digitalWrite(TFT_RST, LOW);
+    }
+    digitalWrite(TFT_CS, HIGH);
+#endif
+}
+
 int boot_draw_rgb565_scaled(const char *path, int16_t x, int16_t y,
                             int16_t width, int16_t height) {
 #ifdef ARDUINO

@@ -3,6 +3,7 @@
 #include "vfs.h"
 #include "shell_codes.h"
 #include "shell_error.h"
+#include "compat.h"
 #include <string.h>
 #include <stdlib.h>
 
@@ -208,8 +209,8 @@ static int mv_single(terminal_state *term, const char *src_path,
         vfs_node_release(src_parent);
         vfs_node_release(src_node);
         free(src_name);
-        free(dst_name);
         shell_error(term, "mv: %s: invalid directory name", dst_name);
+        free(dst_name);
         return SHELL_EINVAL;
     }
     
@@ -230,8 +231,8 @@ static int mv_single(terminal_state *term, const char *src_path,
             vfs_node_release(src_parent);
             vfs_node_release(src_node);
             free(src_name);
-            free(dst_name);
             shell_error(term, "mv: %s: is a directory", dst_name);
+            free(dst_name);
             return SHELL_ENOTDIR;
         }
         

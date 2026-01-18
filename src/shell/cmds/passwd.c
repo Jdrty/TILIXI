@@ -4,6 +4,7 @@
 #include "shell_codes.h"
 #include "shell_error.h"
 #include "passwd.h"
+#include "compat.h"
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -77,8 +78,9 @@ static int read_passwd_entry(char *out_user, size_t out_size, uint32_t *out_hash
         return 0;
     }
     *colon = '\0';
-    strncpy(out_user, buf, out_size - 1);
-    out_user[out_size - 1] = '\0';
+    size_t copy_len = strnlen(buf, out_size - 1);
+    memcpy(out_user, buf, copy_len);
+    out_user[copy_len] = '\0';
     const char *hash_str = colon + 1;
     if (strlen(hash_str) == 0) {
         return 0;
@@ -291,8 +293,9 @@ int cmd_passwd(terminal_state *term, int argc, char **argv) {
     passwd_state.term = term;
     passwd_state.step = PASSWD_STEP_CURRENT;
     passwd_state.current_hash = hash;
-    strncpy(passwd_state.username, username, sizeof(passwd_state.username) - 1);
-    passwd_state.username[sizeof(passwd_state.username) - 1] = '\0';
+    size_t uname_len = strnlen(username, sizeof(passwd_state.username) - 1);
+    memcpy(passwd_state.username, username, uname_len);
+    passwd_state.username[uname_len] = '\0';
     
     terminal_clear(term);
     terminal_write_line(term, "Change password");

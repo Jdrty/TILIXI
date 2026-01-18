@@ -16,6 +16,7 @@ int cmd_clear(terminal_state *term, int argc, char **argv) {
     if (term == NULL) {
         return SHELL_ERR;
     }
+    (void)argv;
     
     if (argc > 1) {
         shell_error(term, "clear: too many arguments");
@@ -24,6 +25,20 @@ int cmd_clear(terminal_state *term, int argc, char **argv) {
     
     // clear terminal buffer
     terminal_clear(term);
+
+    // clear fastfetch overlay state
+    term->fastfetch_image_active = 0;
+    term->fastfetch_image_path[0] = '\0';
+    term->fastfetch_start_row = 0;
+    term->fastfetch_line_count = 0;
+#ifdef ARDUINO
+    if (term->fastfetch_image_pixels != NULL) {
+        free(term->fastfetch_image_pixels);
+        term->fastfetch_image_pixels = NULL;
+    }
+    term->fastfetch_image_w = 0;
+    term->fastfetch_image_h = 0;
+#endif
     
     // clear terminal history
     term->history_count = 0;
@@ -32,6 +47,10 @@ int cmd_clear(terminal_state *term, int argc, char **argv) {
         memset(term->history[i], 0, terminal_cols);
     }
     
+    #ifdef ARDUINO
+    extern void terminal_render_all(void);
+    terminal_render_all();
+    #endif
     return SHELL_OK;
 }
 

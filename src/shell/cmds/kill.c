@@ -15,6 +15,7 @@ int cmd_kill(terminal_state *term, int argc, char **argv) {
     if (term == NULL) {
         return SHELL_ERR;
     }
+    (void)argv;
     
     if (argc < 2) {
         shell_error(term, "kill: missing process ID");

@@ -3,6 +3,7 @@
 #include "terminal.h"
 #include "shell_error.h"
 #include "shell_codes.h"
+#include "compat.h"
 #include <string.h>
 
 int cmd_cd(terminal_state *term, int argc, char **argv);
@@ -39,8 +40,9 @@ static int read_username_from_passwd(char *out, size_t out_len) {
     if (buf[0] == '\0') {
         return 0;
     }
-    strncpy(out, buf, out_len - 1);
-    out[out_len - 1] = '\0';
+    size_t copy_len = strnlen(buf, out_len - 1);
+    memcpy(out, buf, copy_len);
+    out[copy_len] = '\0';
     return 1;
 }
 

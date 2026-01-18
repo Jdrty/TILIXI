@@ -3,6 +3,7 @@
 #include "vfs.h"
 #include "shell_codes.h"
 #include "shell_error.h"
+#include "compat.h"
 #include <string.h>
 #include <stdlib.h>
 
@@ -124,10 +125,10 @@ static int mkdir_single(terminal_state *term, const char *path, int parents) {
         vfs_node_t *next = vfs_resolve_at(current, cursor);
         if (next != NULL) {
             if (next->type != VFS_NODE_DIR) {
+                shell_error(term, "mkdir: %s: not a directory", cursor);
                 free(path_copy);
                 vfs_node_release(next);
                 vfs_node_release(current);
-                shell_error(term, "mkdir: %s: not a directory", cursor);
                 return SHELL_ENOTDIR;
             }
             if (is_last && !parents) {
@@ -148,9 +149,9 @@ static int mkdir_single(terminal_state *term, const char *path, int parents) {
             }
             
             if (name_has_extension(cursor)) {
+                shell_error(term, "mkdir: %s: invalid directory name", cursor);
                 free(path_copy);
                 vfs_node_release(current);
-                shell_error(term, "mkdir: %s: invalid directory name", cursor);
                 return SHELL_EINVAL;
             }
 

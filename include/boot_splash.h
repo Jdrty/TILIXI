@@ -11,6 +11,7 @@ void boot_init(void);
 
 // refresh/redraw the boot screen (call periodically if needed)
 void boot_refresh(void);
+void boot_tft_shutdown(void);
 
 // draw a raw RGB565 logo from SD card
 // returns 1 if shown, 0 otherwise

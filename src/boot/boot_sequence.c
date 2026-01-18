@@ -66,8 +66,8 @@ static inline void delay_ms(unsigned int ms) {
 static uint8_t boot_line_y = 20;  // current Y position for boot messages
 static uint8_t boot_logo_active = 0;
 #else
-static uint8_t boot_line_y = 0;  // unused on PC
-static uint8_t boot_logo_active = 0;
+static uint8_t boot_line_y __attribute__((unused)) = 0;  // unused on PC
+static uint8_t boot_logo_active __attribute__((unused)) = 0;
 #endif
 static uint8_t boot_initialized = 0;
 static uint8_t boot_complete = 0;  // track if boot sequence has finished
@@ -88,6 +88,9 @@ void boot_sequence_init(void) {
 }
 
 void boot_display_message(const char *step_name, boot_status_t status) {
+#ifndef ARDUINO
+    (void)step_name;
+#endif
     if (!boot_initialized) {
         boot_sequence_init();
     }

@@ -2,6 +2,7 @@
 // redundant now, got real vfs working
 
 #include "vfs.h"
+#include "compat.h"
 #include <stdlib.h>
 #include <string.h>
 
@@ -37,6 +38,118 @@ typedef struct {
 static stub_iter_state_t stub_iter_state = {0};
 
 static vfs_dir_iter_t stub_iter = {0};
+
+typedef struct {
+    int in_use;
+    char path[128];
+    char *data;
+    size_t len;
+    vfs_node_t node;
+} stub_file_entry_t;
+
+typedef struct {
+    stub_file_entry_t *entry;
+    size_t pos;
+} stub_file_handle_t;
+
+#define MAX_STUB_FILES 8
+static stub_file_entry_t stub_files[MAX_STUB_FILES] = {0};
+
+static int stub_file_close(void *handle) {
+    if (handle == NULL) {
+        return VFS_EINVAL;
+    }
+    free(handle);
+    return VFS_EOK;
+}
+
+static ssize_t stub_file_read(void *handle, void *buf, size_t size) {
+    if (handle == NULL || buf == NULL) {
+        return VFS_EINVAL;
+    }
+    stub_file_handle_t *fh = (stub_file_handle_t*)handle;
+    if (fh->entry == NULL || fh->entry->data == NULL) {
+        return VFS_EINVAL;
+    }
+    if (fh->pos >= fh->entry->len) {
+        return 0;
+    }
+    size_t remaining = fh->entry->len - fh->pos;
+    size_t to_copy = remaining < size ? remaining : size;
+    memcpy(buf, fh->entry->data + fh->pos, to_copy);
+    fh->pos += to_copy;
+    return (ssize_t)to_copy;
+}
+
+static ssize_t stub_file_write(void *handle, const void *buf, size_t size) {
+    (void)handle;
+    (void)buf;
+    (void)size;
+    return VFS_EPERM;
+}
+
+static ssize_t stub_file_size(vfs_node_t *node) {
+    if (node == NULL || node->backend_data == NULL) {
+        return VFS_EINVAL;
+    }
+    stub_file_entry_t *entry = (stub_file_entry_t*)node->backend_data;
+    return (ssize_t)entry->len;
+}
+
+static int stub_file_seek(void *handle, size_t offset) {
+    if (handle == NULL) {
+        return VFS_EINVAL;
+    }
+    stub_file_handle_t *fh = (stub_file_handle_t*)handle;
+    if (fh->entry == NULL) {
+        return VFS_EINVAL;
+    }
+    if (offset > fh->entry->len) {
+        return VFS_EINVAL;
+    }
+    fh->pos = offset;
+    return VFS_EOK;
+}
+
+static ssize_t stub_file_tell(void *handle) {
+    if (handle == NULL) {
+        return VFS_EINVAL;
+    }
+    stub_file_handle_t *fh = (stub_file_handle_t*)handle;
+    return (ssize_t)fh->pos;
+}
+
+static void* stub_file_open(vfs_node_t *node, int flags) {
+    if (node == NULL || node->backend_data == NULL) {
+        return NULL;
+    }
+    if (!(flags & VFS_O_READ)) {
+        return NULL;
+    }
+    stub_file_entry_t *entry = (stub_file_entry_t*)node->backend_data;
+    stub_file_handle_t *handle = (stub_file_handle_t*)malloc(sizeof(*handle));
+    if (handle == NULL) {
+        return NULL;
+    }
+    handle->entry = entry;
+    handle->pos = 0;
+    return handle;
+}
+
+static const vfs_ops_t file_ops = {
+    .open = stub_file_open,
+    .close = stub_file_close,
+    .read = stub_file_read,
+    .write = stub_file_write,
+    .size = stub_file_size,
+    .seek = stub_file_seek,
+    .tell = stub_file_tell,
+    .dir_iter_create = NULL,
+    .dir_iter_next = NULL,
+    .dir_iter_destroy = NULL,
+    .dir_create = NULL,
+    .dir_remove = NULL
+};
 
 static vfs_dir_iter_t* stub_dir_iter_create(vfs_node_t *dir_node) {
     if (dir_node == NULL || dir_node->type != VFS_NODE_DIR) {
@@ -154,6 +267,46 @@ int vfs_init(void) {
     return VFS_EOK;
 }
 
+int vfs_stub_register_file(const char *path, const char *content) {
+    if (path == NULL || path[0] != '/') {
+        return 0;
+    }
+    for (int i = 0; i < MAX_STUB_FILES; i++) {
+        if (stub_files[i].in_use && strcmp(stub_files[i].path, path) == 0) {
+            free(stub_files[i].data);
+            stub_files[i].data = strdup(content ? content : "");
+            if (stub_files[i].data == NULL) {
+                stub_files[i].len = 0;
+                return 0;
+            }
+            stub_files[i].len = strlen(stub_files[i].data);
+            return 1;
+        }
+    }
+    for (int i = 0; i < MAX_STUB_FILES; i++) {
+        if (!stub_files[i].in_use) {
+            stub_files[i].in_use = 1;
+            strncpy(stub_files[i].path, path, sizeof(stub_files[i].path) - 1);
+            stub_files[i].path[sizeof(stub_files[i].path) - 1] = '\0';
+            stub_files[i].data = strdup(content ? content : "");
+            if (stub_files[i].data == NULL) {
+                stub_files[i].in_use = 0;
+                return 0;
+            }
+            stub_files[i].len = strlen(stub_files[i].data);
+            stub_files[i].node.type = VFS_NODE_FILE;
+            stub_files[i].node.ops = &file_ops;
+            stub_files[i].node.backend_data = &stub_files[i];
+            stub_files[i].node.is_readonly = 0;
+            stub_files[i].node.is_hidden = 0;
+            stub_files[i].node.reserved = 0;
+            stub_files[i].node.refcount = 0;
+            return 1;
+        }
+    }
+    return 0;
+}
+
 vfs_node_t* vfs_resolve(const char *path) {
     if (path == NULL) {
         return NULL;
@@ -173,6 +326,13 @@ vfs_node_t* vfs_resolve(const char *path) {
     if (strcmp(path, "/dir1/subdir") == 0) {
         subdir_node.refcount++;
         return &subdir_node;
+    }
+
+    for (int i = 0; i < MAX_STUB_FILES; i++) {
+        if (stub_files[i].in_use && strcmp(stub_files[i].path, path) == 0) {
+            stub_files[i].node.refcount++;
+            return &stub_files[i].node;
+        }
     }
     
     return NULL;
@@ -359,54 +519,114 @@ int vfs_dir_rename_node(vfs_node_t *old_dir, const char *old_name,
 }
 
 vfs_file_t* vfs_open(const char *path, int flags) {
-    (void)path;
-    (void)flags;
-    return NULL;
+    vfs_node_t *node = vfs_resolve(path);
+    if (node == NULL) {
+        return NULL;
+    }
+    vfs_file_t *file = vfs_open_node(node, flags);
+    vfs_node_release(node);
+    return file;
 }
 
 vfs_file_t* vfs_open_node(vfs_node_t *node, int flags) {
-    (void)node;
-    (void)flags;
-    return NULL;
+    if (node == NULL || node->ops == NULL || node->ops->open == NULL) {
+        return NULL;
+    }
+    void *handle = node->ops->open(node, flags);
+    if (handle == NULL) {
+        return NULL;
+    }
+    vfs_file_t *file = (vfs_file_t*)malloc(sizeof(*file));
+    if (file == NULL) {
+        node->ops->close(handle);
+        return NULL;
+    }
+    file->node = node;
+    file->handle = handle;
+    file->position = 0;
+    node->refcount++;
+    return file;
 }
 
 int vfs_close(vfs_file_t *file) {
-    (void)file;
-    return VFS_EPERM;
+    if (file == NULL || file->node == NULL || file->node->ops == NULL) {
+        return VFS_EINVAL;
+    }
+    int result = VFS_EOK;
+    if (file->node->ops->close != NULL) {
+        result = file->node->ops->close(file->handle);
+    }
+    vfs_node_release(file->node);
+    free(file);
+    return result;
 }
 
 ssize_t vfs_read(vfs_file_t *file, void *buf, size_t size) {
-    (void)file;
-    (void)buf;
-    (void)size;
-    return VFS_EPERM;
+    if (file == NULL || file->node == NULL || file->node->ops == NULL) {
+        return VFS_EINVAL;
+    }
+    if (file->node->ops->read == NULL) {
+        return VFS_EPERM;
+    }
+    ssize_t res = file->node->ops->read(file->handle, buf, size);
+    if (res > 0) {
+        file->position += (size_t)res;
+    }
+    return res;
 }
 
 ssize_t vfs_write(vfs_file_t *file, const void *buf, size_t size) {
-    (void)file;
-    (void)buf;
-    (void)size;
-    return VFS_EPERM;
+    if (file == NULL || file->node == NULL || file->node->ops == NULL) {
+        return VFS_EINVAL;
+    }
+    if (file->node->ops->write == NULL) {
+        return VFS_EPERM;
+    }
+    ssize_t res = file->node->ops->write(file->handle, buf, size);
+    if (res > 0) {
+        file->position += (size_t)res;
+    }
+    return res;
 }
 
 ssize_t vfs_size(const char *path) {
-    (void)path;
-    return VFS_EPERM;
+    vfs_node_t *node = vfs_resolve(path);
+    if (node == NULL) {
+        return VFS_ENOENT;
+    }
+    ssize_t size = vfs_size_node(node);
+    vfs_node_release(node);
+    return size;
 }
 
 ssize_t vfs_size_node(vfs_node_t *node) {
-    (void)node;
-    return VFS_EPERM;
+    if (node == NULL || node->ops == NULL || node->ops->size == NULL) {
+        return VFS_EPERM;
+    }
+    return node->ops->size(node);
 }
 
 int vfs_seek(vfs_file_t *file, size_t offset) {
-    (void)file;
-    (void)offset;
-    return VFS_EPERM;
+    if (file == NULL || file->node == NULL || file->node->ops == NULL) {
+        return VFS_EINVAL;
+    }
+    if (file->node->ops->seek == NULL) {
+        return VFS_EPERM;
+    }
+    int res = file->node->ops->seek(file->handle, offset);
+    if (res == VFS_EOK) {
+        file->position = offset;
+    }
+    return res;
 }
 
 ssize_t vfs_tell(vfs_file_t *file) {
-    (void)file;
-    return VFS_EPERM;
+    if (file == NULL || file->node == NULL || file->node->ops == NULL) {
+        return VFS_EINVAL;
+    }
+    if (file->node->ops->tell == NULL) {
+        return VFS_EPERM;
+    }
+    return file->node->ops->tell(file->handle);
 }
 

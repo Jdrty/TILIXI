@@ -67,6 +67,13 @@ int boot_sd_mount(void) {
     return 0;
 }
 
+int boot_sd_unmount(void) {
+    boot_sd_switch_to_sd_spi();
+    SD.end();
+    boot_sd_restore_tft_spi();
+    return 0;
+}
+
 // restore SPI configuration for TFT display
 // call this after filesystem initialization is complete
 void boot_sd_restore_tft_spi(void) {
@@ -287,6 +294,7 @@ int boot_sd_find_bootlogo(const char *username, char *out_path, size_t out_len) 
 // for pc build with no SD card support.
 extern "C" {
 int boot_sd_mount(void) { return 0; }
+int boot_sd_unmount(void) { return 0; }
 void boot_sd_restore_tft_spi(void) { }
 void boot_sd_switch_to_sd_spi(void) { }
 int boot_sd_available(void) { return 0; }

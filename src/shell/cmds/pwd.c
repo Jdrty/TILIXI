@@ -16,6 +16,7 @@ int cmd_pwd(terminal_state *term, int argc, char **argv) {
     if (term == NULL) {
         return SHELL_ERR;
     }
+    (void)argv;
     
     if (argc > 1) {
         shell_error(term, "pwd: too many arguments");

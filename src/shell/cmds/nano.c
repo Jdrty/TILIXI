@@ -199,7 +199,9 @@ static void nano_render(void) {
     terminal_clear(term);
     
     char header[terminal_cols + 1];
-    snprintf(header, sizeof(header), "  GNU nano  %s", nano_state.path);
+    size_t header_avail = sizeof(header) - strlen("  GNU nano  ") - 1;
+    snprintf(header, sizeof(header), "  GNU nano  %.*s",
+             (int)header_avail, nano_state.path);
     nano_write_line(term, 0, header);
     
     int edit_rows = terminal_rows - 3;
@@ -265,7 +267,12 @@ static void nano_render(void) {
         
         if (row < total_lines && total_lines > 0) {
             char prefix[16];
-            snprintf(prefix, sizeof(prefix), "%*d ", digits, row + 1);
+            int width = digits;
+            int max_width = (int)sizeof(prefix) - 2;
+            if (width > max_width) {
+                width = max_width;
+            }
+            snprintf(prefix, sizeof(prefix), "%*d ", width, row + 1);
             size_t prefix_len = strlen(prefix);
             if ((int)prefix_len > prefix_width) {
                 prefix_len = prefix_width;
@@ -295,7 +302,9 @@ static void nano_render(void) {
     
     char status[terminal_cols + 1];
     const char *dirty = nano_state.dirty ? "Modified" : "Saved";
-    snprintf(status, sizeof(status), "File: %s -- %s", nano_state.path, dirty);
+    size_t status_avail = sizeof(status) - strlen("File: ") - strlen(" -- ") - strlen(dirty) - 1;
+    snprintf(status, sizeof(status), "File: %.*s -- %s",
+             (int)status_avail, nano_state.path, dirty);
     nano_write_line(term, terminal_rows - 2, status);
     
     char footer[terminal_cols + 1];

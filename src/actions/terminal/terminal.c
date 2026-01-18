@@ -137,18 +137,22 @@ void terminal_handle_enter(terminal_state *term) {
     // theres probably a more unified way to do this that looks a lot better
     // butttttttt im too lazy and dumb...
     if (term->input_len > 0) {
+        size_t copy_len = term->input_len;
+        if (copy_len > terminal_cols - 1) {
+            copy_len = terminal_cols - 1;
+        }
         if (term->history_count < max_input_history) {
-            strncpy(term->history[term->history_count], term->input_line, terminal_cols - 1);
-            term->history[term->history_count][terminal_cols - 1] = '\0';
+            memcpy(term->history[term->history_count], term->input_line, copy_len);
+            term->history[term->history_count][copy_len] = '\0';
             term->history_count++;
         } else {
             // shift history up
             for (uint8_t i = 0; i < max_input_history - 1; i++) {
-                strncpy(term->history[i], term->history[i + 1], terminal_cols - 1);
+                memcpy(term->history[i], term->history[i + 1], terminal_cols - 1);
                 term->history[i][terminal_cols - 1] = '\0';
             }
-            strncpy(term->history[max_input_history - 1], term->input_line, terminal_cols - 1);
-            term->history[max_input_history - 1][terminal_cols - 1] = '\0';
+            memcpy(term->history[max_input_history - 1], term->input_line, copy_len);
+            term->history[max_input_history - 1][copy_len] = '\0';
         }
         term->history_pos = term->history_count;
     }
