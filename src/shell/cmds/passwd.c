@@ -300,4 +300,3 @@ int cmd_passwd(terminal_state *term, int argc, char **argv) {
     passwd_clear_input();
     return SHELL_OK;
 }
-

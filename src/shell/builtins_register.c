@@ -10,6 +10,8 @@ extern const builtin_cmd cmd_rm_def;
 extern const builtin_cmd cmd_rmdir_def;
 extern const builtin_cmd cmd_mv_def;
 extern const builtin_cmd cmd_echo_def;
+extern const builtin_cmd cmd_grep_def;
+extern const builtin_cmd cmd_exit_def;
 extern const builtin_cmd cmd_kill_def;
 extern const builtin_cmd cmd_shutdown_def;
 extern const builtin_cmd cmd_reboot_def;
@@ -31,6 +33,8 @@ void builtins_register_all(void) {
     builtins_register_descriptor(&cmd_rmdir_def);
     builtins_register_descriptor(&cmd_mv_def);
     builtins_register_descriptor(&cmd_echo_def);
+    builtins_register_descriptor(&cmd_grep_def);
+    builtins_register_descriptor(&cmd_exit_def);
     builtins_register_descriptor(&cmd_kill_def);
     builtins_register_descriptor(&cmd_shutdown_def);
     builtins_register_descriptor(&cmd_reboot_def);

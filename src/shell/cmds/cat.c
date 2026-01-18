@@ -249,7 +249,7 @@ int cmd_cat(terminal_state *term, int argc, char **argv) {
             if (out_file != NULL) {
                 vfs_close(out_file);
             }
-            return SHELL_ERR;
+    return SHELL_ERR;
         }
         
         while (1) {
