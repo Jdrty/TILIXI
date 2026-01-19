@@ -16,7 +16,13 @@ void init_terminal_system(void) {
     window_count = 0;
     active_terminal = 0;
     selected_terminal = 0;
+#ifdef ARDUINO
+    extern void terminal_image_view_release(terminal_state *term);
+#endif
     for (uint8_t i = 0; i < max_windows; i++) {
+#ifdef ARDUINO
+        terminal_image_view_release(&terminals[i]);
+#endif
         terminals[i].active = 0;
         terminals[i].cursor_row = 0;
         terminals[i].cursor_col = 0;
@@ -34,6 +40,8 @@ void init_terminal_system(void) {
         terminals[i].fastfetch_image_h = 0;
         terminals[i].fastfetch_start_row = 0;
         terminals[i].fastfetch_line_count = 0;
+        terminals[i].image_view_active = 0;
+        terminals[i].image_view_path[0] = '\0';
         memset(terminals[i].buffer, ' ', terminal_buffer_size);
         memset(terminals[i].input_line, 0, terminal_cols);
         terminals[i].x = 0;
@@ -159,6 +167,11 @@ void terminal_handle_enter(terminal_state *term) {
     
     // move to next line (off the input line) - always do this
     terminal_newline(term);
+
+    // clear input line now so renders during command execution don't duplicate it
+    memset(term->input_line, 0, terminal_cols);
+    term->input_pos = 0;
+    term->input_len = 0;
     
     // execute command if there is one
     if (tokens.token_count > 0) {
@@ -168,11 +181,6 @@ void terminal_handle_enter(terminal_state *term) {
             terminal_execute_command(term, &tokens);
         }
     }
-    
-    // clear input line
-    memset(term->input_line, 0, terminal_cols);
-    term->input_pos = 0;
-    term->input_len = 0;
     
     // if a fullscreen app is active (e.g. nano), don't draw the shell prompt
     extern int nano_is_active(void);

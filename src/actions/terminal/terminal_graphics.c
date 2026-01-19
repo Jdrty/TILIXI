@@ -8,6 +8,8 @@ extern int passwd_is_active(void);
 
 #ifdef ARDUINO
     #include "boot_splash.h"
+    #include "vfs.h"
+    #include <stdlib.h>
     extern void boot_tft_set_cursor(int16_t x, int16_t y);
     extern void boot_tft_set_text_size(uint8_t size);
     extern void boot_tft_set_text_color(uint16_t color, uint16_t bg);
@@ -21,6 +23,227 @@ extern int passwd_is_active(void);
     // external terminal state (defined in terminal.c)
     extern terminal_state terminals[max_windows];
     extern uint8_t selected_terminal;
+
+    static uint16_t *image_cache_pixels[max_windows] = {0};
+    static uint16_t image_cache_w[max_windows] = {0};
+    static uint16_t image_cache_h[max_windows] = {0};
+    static char image_cache_path[max_windows][256] = {{0}};
+    static uint16_t *image_src_pixels[max_windows] = {0};
+    static char image_src_path[max_windows][256] = {{0}};
+
+    static int terminal_index(terminal_state *term) {
+        if (term == NULL) {
+            return -1;
+        }
+        for (uint8_t i = 0; i < max_windows; i++) {
+            if (&terminals[i] == term) {
+                return (int)i;
+            }
+        }
+        return -1;
+    }
+
+    void terminal_image_view_release(terminal_state *term) {
+        int idx = terminal_index(term);
+        if (idx < 0) {
+            return;
+        }
+        if (image_cache_pixels[idx] != NULL) {
+            free(image_cache_pixels[idx]);
+            image_cache_pixels[idx] = NULL;
+        }
+        image_cache_w[idx] = 0;
+        image_cache_h[idx] = 0;
+        image_cache_path[idx][0] = '\0';
+        if (image_src_pixels[idx] != NULL) {
+            free(image_src_pixels[idx]);
+            image_src_pixels[idx] = NULL;
+        }
+        image_src_path[idx][0] = '\0';
+    }
+
+    static uint16_t *load_rgb565_source_vfs(const char *path) {
+        if (path == NULL || path[0] == '\0') {
+            return NULL;
+        }
+        const int16_t src_w = 480;
+        const int16_t src_h = 320;
+        const size_t expected = (size_t)src_w * (size_t)src_h * 2;
+        ssize_t file_size = vfs_size(path);
+        if (file_size >= 0 && (size_t)file_size < expected) {
+            return NULL;
+        }
+        vfs_file_t *file = vfs_open(path, VFS_O_READ);
+        if (file == NULL) {
+            return NULL;
+        }
+        uint16_t *src = (uint16_t*)malloc(expected);
+        if (src == NULL) {
+            vfs_close(file);
+            return NULL;
+        }
+        const int16_t chunk_lines = 20;
+        size_t row_bytes = (size_t)src_w * 2;
+        int16_t y = 0;
+        while (y < src_h) {
+            int16_t lines = chunk_lines;
+            if (y + lines > src_h) {
+                lines = src_h - y;
+            }
+            size_t bytes = (size_t)lines * row_bytes;
+            uint8_t *dest_bytes = (uint8_t*)src + (size_t)y * row_bytes;
+            ssize_t read_bytes = vfs_read(file, dest_bytes, bytes);
+            if (read_bytes != (ssize_t)bytes) {
+                free(src);
+                vfs_close(file);
+                return NULL;
+            }
+            y += lines;
+        }
+        vfs_close(file);
+        return src;
+    }
+
+    static uint16_t *scale_rgb565_from_source(const uint16_t *src, int16_t width, int16_t height) {
+        if (src == NULL || width <= 0 || height <= 0) {
+            return NULL;
+        }
+        const int16_t src_w = 480;
+        const int16_t src_h = 320;
+        uint16_t *dest = (uint16_t*)malloc((size_t)width * (size_t)height * 2);
+        if (dest == NULL) {
+            return NULL;
+        }
+        uint16_t *x_map = (uint16_t*)malloc((size_t)width * sizeof(uint16_t));
+        uint16_t *dest_sy = (uint16_t*)malloc((size_t)height * sizeof(uint16_t));
+        if (x_map == NULL || dest_sy == NULL) {
+            if (x_map) free(x_map);
+            if (dest_sy) free(dest_sy);
+            free(dest);
+            return NULL;
+        }
+        for (int16_t dx = 0; dx < width; dx++) {
+            x_map[dx] = (uint16_t)((dx * src_w) / width);
+        }
+        for (int16_t dy = 0; dy < height; dy++) {
+            dest_sy[dy] = (uint16_t)((dy * src_h) / height);
+        }
+        for (int16_t dy = 0; dy < height; dy++) {
+            const uint16_t *src_row = src + (size_t)dest_sy[dy] * (size_t)src_w;
+            uint16_t *out_row = dest + (size_t)dy * (size_t)width;
+            for (int16_t dx = 0; dx < width; dx++) {
+                out_row[dx] = src_row[x_map[dx]];
+            }
+        }
+        free(x_map);
+        free(dest_sy);
+        return dest;
+    }
+
+    static uint16_t *load_rgb565_scaled_vfs(const char *path, int16_t width, int16_t height) {
+        if (path == NULL || path[0] == '\0' || width <= 0 || height <= 0) {
+            return NULL;
+        }
+        const int16_t src_w = 480;
+        const int16_t src_h = 320;
+        const size_t expected = (size_t)src_w * (size_t)src_h * 2;
+        ssize_t file_size = vfs_size(path);
+        if (file_size >= 0 && (size_t)file_size < expected) {
+            return NULL;
+        }
+        
+        vfs_file_t *file = vfs_open(path, VFS_O_READ);
+        if (file == NULL) {
+            return NULL;
+        }
+        
+        size_t src_row_bytes = (size_t)src_w * 2;
+        uint16_t *dest = (uint16_t*)malloc((size_t)width * (size_t)height * 2);
+        if (dest == NULL) {
+            vfs_close(file);
+            return NULL;
+        }
+
+        if (width == src_w && height == src_h) {
+            const int16_t chunk_lines = 20;
+            int16_t y = 0;
+            while (y < src_h) {
+                int16_t lines = chunk_lines;
+                if (y + lines > src_h) {
+                    lines = src_h - y;
+                }
+                size_t bytes = (size_t)lines * src_row_bytes;
+                uint8_t *dest_bytes = (uint8_t*)dest + (size_t)y * src_row_bytes;
+                ssize_t read_bytes = vfs_read(file, dest_bytes, bytes);
+                if (read_bytes != (ssize_t)bytes) {
+                    free(dest);
+                    vfs_close(file);
+                    return NULL;
+                }
+                y += lines;
+            }
+            vfs_close(file);
+            return dest;
+        }
+
+        const int16_t chunk_lines = 16;
+        size_t chunk_bytes = (size_t)chunk_lines * src_row_bytes;
+        uint8_t *src_chunk = (uint8_t*)malloc(chunk_bytes);
+        uint16_t *x_map = (uint16_t*)malloc((size_t)width * sizeof(uint16_t));
+        uint16_t *dest_sy = (uint16_t*)malloc((size_t)height * sizeof(uint16_t));
+        if (src_chunk == NULL || x_map == NULL || dest_sy == NULL) {
+            if (src_chunk) free(src_chunk);
+            if (x_map) free(x_map);
+            if (dest_sy) free(dest_sy);
+            free(dest);
+            vfs_close(file);
+            return NULL;
+        }
+
+        for (int16_t dx = 0; dx < width; dx++) {
+            x_map[dx] = (uint16_t)((dx * src_w) / width);
+        }
+        for (int16_t dy = 0; dy < height; dy++) {
+            dest_sy[dy] = (uint16_t)((dy * src_h) / height);
+        }
+        
+        for (int16_t sy_base = 0; sy_base < src_h; sy_base += chunk_lines) {
+            int16_t lines = chunk_lines;
+            if (sy_base + lines > src_h) {
+                lines = src_h - sy_base;
+            }
+            size_t bytes = (size_t)lines * src_row_bytes;
+            ssize_t read_bytes = vfs_read(file, src_chunk, bytes);
+            if (read_bytes != (ssize_t)bytes) {
+                free(src_chunk);
+                free(x_map);
+                free(dest_sy);
+                free(dest);
+                vfs_close(file);
+                return NULL;
+            }
+            
+            for (int16_t dy = 0; dy < height; dy++) {
+                int16_t sy = (int16_t)dest_sy[dy];
+                if (sy < sy_base || sy >= sy_base + lines) {
+                    continue;
+                }
+                uint8_t *src_row = src_chunk + (size_t)(sy - sy_base) * src_row_bytes;
+                uint16_t *out_row = dest + (size_t)dy * (size_t)width;
+                for (int16_t dx = 0; dx < width; dx++) {
+                    size_t idx = (size_t)x_map[dx] * 2;
+                    uint16_t pix = (uint16_t)src_row[idx] | ((uint16_t)src_row[idx + 1] << 8);
+                    out_row[dx] = pix;
+                }
+            }
+        }
+        
+        free(src_chunk);
+        free(x_map);
+        free(dest_sy);
+        vfs_close(file);
+        return dest;
+    }
 
     // render all active terminal windows
     // clears screen first to ensure clean rendering
@@ -67,6 +290,69 @@ extern int passwd_is_active(void);
                           term->width - (border * 2), 
                           term->height - (border * 2), 
                           COLOR_WHITE);
+        
+        if (term->image_view_active && term->image_view_path[0] != '\0') {
+            int16_t image_x = term->x + border;
+            int16_t image_y = term->y + border;
+            int16_t image_w = term->width - (border * 2);
+            int16_t image_h = term->height - (border * 2);
+            if (image_w > 0 && image_h > 0) {
+                int idx = terminal_index(term);
+                if (idx >= 0) {
+                    uint8_t path_match = (image_cache_path[idx][0] != '\0' &&
+                                          strcmp(image_cache_path[idx], term->image_view_path) == 0);
+                    if (image_cache_pixels[idx] == NULL ||
+                        image_cache_w[idx] != (uint16_t)image_w ||
+                        image_cache_h[idx] != (uint16_t)image_h ||
+                        !path_match) {
+                        if (image_cache_pixels[idx] != NULL) {
+                            free(image_cache_pixels[idx]);
+                            image_cache_pixels[idx] = NULL;
+                        }
+                        image_cache_w[idx] = 0;
+                        image_cache_h[idx] = 0;
+                        image_cache_path[idx][0] = '\0';
+                        if (!path_match && image_src_pixels[idx] != NULL) {
+                            free(image_src_pixels[idx]);
+                            image_src_pixels[idx] = NULL;
+                            image_src_path[idx][0] = '\0';
+                        }
+                        if (image_src_pixels[idx] == NULL) {
+                            image_src_pixels[idx] = load_rgb565_source_vfs(term->image_view_path);
+                            if (image_src_pixels[idx] != NULL) {
+                                strncpy(image_src_path[idx], term->image_view_path,
+                                        sizeof(image_src_path[idx]) - 1);
+                                image_src_path[idx][sizeof(image_src_path[idx]) - 1] = '\0';
+                            }
+                        }
+                        if (image_src_pixels[idx] != NULL) {
+                            image_cache_pixels[idx] = scale_rgb565_from_source(
+                                image_src_pixels[idx], image_w, image_h);
+                        } else {
+                            image_cache_pixels[idx] = load_rgb565_scaled_vfs(
+                                term->image_view_path, image_w, image_h);
+                        }
+                        if (image_cache_pixels[idx] != NULL) {
+                            image_cache_w[idx] = (uint16_t)image_w;
+                            image_cache_h[idx] = (uint16_t)image_h;
+                            strncpy(image_cache_path[idx], term->image_view_path,
+                                    sizeof(image_cache_path[idx]) - 1);
+                            image_cache_path[idx][sizeof(image_cache_path[idx]) - 1] = '\0';
+                        }
+                    }
+                    if (image_cache_pixels[idx] != NULL) {
+                        boot_tft_draw_rgb565(image_x, image_y, image_cache_pixels[idx],
+                                             (int16_t)image_cache_w[idx],
+                                             (int16_t)image_cache_h[idx]);
+                    } else {
+                        boot_draw_rgb565_scaled(term->image_view_path, image_x, image_y, image_w, image_h);
+                    }
+                } else {
+                    boot_draw_rgb565_scaled(term->image_view_path, image_x, image_y, image_w, image_h);
+                }
+            }
+            return;
+        }
         
         int16_t image_cols = 0;
         const int16_t image_padding_cols = 2;

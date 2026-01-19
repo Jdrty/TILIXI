@@ -174,6 +174,8 @@ void new_terminal(void) {
     new_term->fastfetch_image_h = 0;
     new_term->fastfetch_start_row = 0;
     new_term->fastfetch_line_count = 0;
+    new_term->image_view_active = 0;
+    new_term->image_view_path[0] = '\0';
     
     // set initial working directory to root, then try user home from /etc/passwd
     new_term->cwd = vfs_resolve("/");
@@ -459,6 +461,11 @@ void close_terminal(void) {
     int16_t closed_y = to_close->y;
     int16_t closed_width = to_close->width;
     int16_t closed_height = to_close->height;
+    
+#ifdef ARDUINO
+    extern void terminal_image_view_release(terminal_state *term);
+    terminal_image_view_release(to_close);
+#endif
     
     to_close->active = 0;
     window_count--;

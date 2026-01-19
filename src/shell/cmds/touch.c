@@ -5,7 +5,6 @@
 #include "vfs.h"
 #include "shell_codes.h"
 #include "shell_error.h"
-#include "compat.h"
 #include <string.h>
 #include <stdlib.h>
 

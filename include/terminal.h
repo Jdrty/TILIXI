@@ -65,6 +65,8 @@ typedef struct {
     uint16_t fastfetch_image_h;
     uint8_t fastfetch_start_row;
     uint8_t fastfetch_line_count;
+    uint8_t image_view_active;
+    char image_view_path[256];
     
     // window geometry for display
     int16_t x;          // window x position

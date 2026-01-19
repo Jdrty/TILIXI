@@ -136,6 +136,7 @@ void keyboard_esp_init(void) {
 
 static void keyboard_esp_handle_char(char c, uint8_t *escape_state,
                                      uint8_t *csi_mod, bool *needs_render) {
+    static uint8_t last_was_enter = 0;
     // handle ANSI escape sequences (arrow keys) without printing escape bytes
     if (*escape_state == 1) {
         if (c == '[' || c == 'O') {
@@ -216,6 +217,10 @@ static void keyboard_esp_handle_char(char c, uint8_t *escape_state,
         KEYBOARD_DBG("[KEYBOARD] ignoring LF (0x0a) - only processing CR (0x0d) for Enter\n");
         return;  // ignore LF completely, exit immediately
     }
+    if (c == '\r' && last_was_enter) {
+        KEYBOARD_DBG("[KEYBOARD] ignoring duplicate CR (0x0d)\n");
+        return;
+    }
     
     key_event evt;
     evt.modifiers = 0;
@@ -228,6 +233,7 @@ static void keyboard_esp_handle_char(char c, uint8_t *escape_state,
         process(evt);
         *needs_render = true;
         last_key_event = evt;
+        last_was_enter = 0;
         return;
     }
     
@@ -302,6 +308,7 @@ static void keyboard_esp_handle_char(char c, uint8_t *escape_state,
         process(evt);
         *needs_render = true;
         last_key_event = evt;
+        last_was_enter = (evt.key == key_enter);
     } else {
         KEYBOARD_DBG("[KEYBOARD] key is key_none, ignoring\n");
     }

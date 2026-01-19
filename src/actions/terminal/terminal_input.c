@@ -110,6 +110,9 @@ void terminal_handle_key_event(key_event evt) {
 #endif
         return;
     }
+    if (term->image_view_active) {
+        return;
+    }
     
     if (firstboot_is_active()) {
         firstboot_handle_key_event(evt);
