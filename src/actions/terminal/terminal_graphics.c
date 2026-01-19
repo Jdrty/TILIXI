@@ -89,8 +89,10 @@ extern int passwd_is_active(void);
         
         // render terminal buffer (simplified - just show visible portion)
         int16_t start_row = 0;
-        if (term->cursor_row >= max_rows) {
-            start_row = term->cursor_row - max_rows + 1;
+        if (!nano_is_active()) {
+            if (term->cursor_row >= max_rows) {
+                start_row = term->cursor_row - max_rows + 1;
+            }
         }
 
         if (term->fastfetch_image_active && term->fastfetch_image_pixels != NULL &&

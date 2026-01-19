@@ -11,7 +11,7 @@ extern "C" {
 
 // terminal char dimensions
 #define max_windows 8
-#define terminal_rows 24
+#define terminal_rows 60
 #define terminal_cols 80
 #define terminal_buffer_size (terminal_rows * terminal_cols)
 #define max_input_history 16

@@ -26,6 +26,7 @@ typedef struct {
     size_t length;
     size_t cursor;
     int dirty;
+    int scroll_row;
     nano_prompt_state_t prompt_state;
     char prompt_input[NANO_PROMPT_MAX];
     size_t prompt_len;
@@ -198,13 +199,25 @@ static void nano_render(void) {
     
     terminal_clear(term);
     
+    int16_t padding = 3;
+    int16_t border = 2;
+    int16_t font_size = 1;
+    int16_t char_height = 8 * font_size;
+    int16_t visible_rows = (term->height - (border * 2) - (padding * 2)) / char_height;
+    if (visible_rows < 4) {
+        visible_rows = 4;
+    }
+    if (visible_rows > terminal_rows) {
+        visible_rows = terminal_rows;
+    }
+    
     char header[terminal_cols + 1];
     size_t header_avail = sizeof(header) - strlen("  GNU nano  ") - 1;
     snprintf(header, sizeof(header), "  GNU nano  %.*s",
              (int)header_avail, nano_state.path);
     nano_write_line(term, 0, header);
     
-    int edit_rows = terminal_rows - 3;
+    int edit_rows = visible_rows - 4;
     size_t idx = 0;
     size_t cursor_idx = nano_state.cursor;
     int cursor_row = 1;
@@ -248,8 +261,20 @@ static void nano_render(void) {
     if (cursor_line < 0) {
         cursor_line = 0;
     }
-    if (cursor_line >= edit_rows) {
-        cursor_line = edit_rows - 1;
+    if (total_lines <= 0) {
+        nano_state.scroll_row = 0;
+    } else {
+        if (nano_state.scroll_row < 0) {
+            nano_state.scroll_row = 0;
+        }
+        if (nano_state.scroll_row > total_lines - 1) {
+            nano_state.scroll_row = total_lines - 1;
+        }
+        if (cursor_line < nano_state.scroll_row) {
+            nano_state.scroll_row = cursor_line;
+        } else if (cursor_line >= nano_state.scroll_row + edit_rows) {
+            nano_state.scroll_row = cursor_line - edit_rows + 1;
+        }
     }
     if (cursor_col_text < 0) {
         cursor_col_text = 0;
@@ -257,22 +282,53 @@ static void nano_render(void) {
     if (cursor_col_text > terminal_cols - prefix_width - 1) {
         cursor_col_text = terminal_cols - prefix_width - 1;
     }
-    cursor_row = 1 + cursor_line;
+    cursor_row = 1 + (cursor_line - nano_state.scroll_row);
+    if (cursor_row < 1) {
+        cursor_row = 1;
+    }
+    if (cursor_row > edit_rows) {
+        cursor_row = edit_rows;
+    }
     cursor_col = prefix_width + cursor_col_text;
+    
+    if (nano_state.scroll_row < 0) {
+        nano_state.scroll_row = 0;
+    }
+    if (nano_state.scroll_row > total_lines - 1 && total_lines > 0) {
+        nano_state.scroll_row = total_lines - 1;
+    }
+    size_t line_start = 0;
+    if (nano_state.scroll_row > 0) {
+        int line_no = 0;
+        for (size_t i = 0; i < nano_state.length; i++) {
+            if (nano_state.buffer[i] == '\n') {
+                line_no++;
+                if (line_no == nano_state.scroll_row) {
+                    line_start = i + 1;
+                    break;
+                }
+            }
+        }
+        if (line_no < nano_state.scroll_row) {
+            line_start = nano_state.length;
+        }
+    }
+    idx = line_start;
+    int current_line_no = nano_state.scroll_row;
     
     for (int row = 0; row < edit_rows; row++) {
         char line[terminal_cols + 1];
         memset(line, ' ', terminal_cols);
         line[terminal_cols] = '\0';
         
-        if (row < total_lines && total_lines > 0) {
+        if (current_line_no < total_lines && total_lines > 0) {
             char prefix[16];
             int width = digits;
             int max_width = (int)sizeof(prefix) - 2;
             if (width > max_width) {
                 width = max_width;
             }
-            snprintf(prefix, sizeof(prefix), "%*d ", width, row + 1);
+            snprintf(prefix, sizeof(prefix), "%*d ", width, current_line_no + 1);
             size_t prefix_len = strlen(prefix);
             if ((int)prefix_len > prefix_width) {
                 prefix_len = prefix_width;
@@ -283,29 +339,35 @@ static void nano_render(void) {
         }
         
         int col = 0;
-        while (idx < nano_state.length) {
-            char c = nano_state.buffer[idx];
-            if (c == '\n') {
+        if (current_line_no < total_lines) {
+            while (idx < nano_state.length) {
+                char c = nano_state.buffer[idx];
+                if (c == '\n') {
+                    idx++;
+                    break;
+                }
+                if (prefix_width + col >= terminal_cols) {
+                    break;
+                }
+                line[prefix_width + col] = c;
+                col++;
                 idx++;
-                break;
             }
-            if (prefix_width + col >= terminal_cols) {
-                break;
-            }
-            line[prefix_width + col] = c;
-            col++;
-            idx++;
         }
         
         nano_write_line(term, 1 + row, line);
+        current_line_no++;
     }
+    
+    // keep one blank line between editor and status/prompt
+    nano_write_line(term, visible_rows - 3, "");
     
     char status[terminal_cols + 1];
     const char *dirty = nano_state.dirty ? "Modified" : "Saved";
     size_t status_avail = sizeof(status) - strlen("File: ") - strlen(" -- ") - strlen(dirty) - 1;
     snprintf(status, sizeof(status), "File: %.*s -- %s",
              (int)status_avail, nano_state.path, dirty);
-    nano_write_line(term, terminal_rows - 2, status);
+    nano_write_line(term, visible_rows - 2, status);
     
     char footer[terminal_cols + 1];
     if (nano_state.prompt_state == NANO_PROMPT_CMD) {
@@ -317,7 +379,7 @@ static void nano_render(void) {
     } else {
         snprintf(footer, sizeof(footer), "^P Command");
     }
-    nano_write_line(term, terminal_rows - 1, footer);
+    nano_write_line(term, visible_rows - 1, footer);
     
     term->cursor_row = cursor_row;
     term->cursor_col = cursor_col;
@@ -443,10 +505,9 @@ void nano_handle_key_event(key_event evt) {
     
     if (nano_state.prompt_state == NANO_PROMPT_CMD) {
         if (evt.key == key_backspace) {
-            if (nano_state.prompt_len > 0) {
-                nano_state.prompt_len--;
-                nano_state.prompt_input[nano_state.prompt_len] = '\0';
-            }
+            nano_reset_prompt();
+            nano_render();
+            return;
         } else if (evt.key == key_enter) {
             if (nano_state.prompt_len == 1 && nano_state.prompt_input[0] == 'x') {
                 nano_state.prompt_state = NANO_PROMPT_SAVE_CHOICE;
@@ -562,6 +623,7 @@ int cmd_nano(terminal_state *term, int argc, char **argv) {
     nano_state.cursor = 0;
     nano_state.dirty = 0;
     nano_state.prompt_state = NANO_PROMPT_NONE;
+    nano_state.scroll_row = 0;
     
     if (nano_load_file(term, nano_state.path) != SHELL_OK) {
         nano_state.active = 0;

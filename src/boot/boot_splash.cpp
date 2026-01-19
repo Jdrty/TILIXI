@@ -79,8 +79,8 @@ void boot_init(void) {
 
     delay(800);
     
-    // set rotation to 90 degrees (landscape/desktop orientation)
-    tft.setRotation(1);
+    // rotate 180 degrees from current landscape orientation
+    tft.setRotation(3);
     delay(100);
     
     // verify rotation worked - after rotation, dimensions swap
