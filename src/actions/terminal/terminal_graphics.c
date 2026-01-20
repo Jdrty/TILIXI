@@ -19,6 +19,7 @@ extern int passwd_is_active(void);
     extern void boot_tft_draw_rect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t color);
     #define COLOR_BLACK   0x0000
     #define COLOR_WHITE  0xFFFF
+    #define COLOR_GRAY   0xC618
 
     // external terminal state (defined in terminal.c)
     extern terminal_state terminals[max_windows];
@@ -30,6 +31,10 @@ extern int passwd_is_active(void);
     static char image_cache_path[max_windows][256] = {{0}};
     static uint16_t *image_src_pixels[max_windows] = {0};
     static char image_src_path[max_windows][256] = {{0}};
+    static uint16_t *fastfetch_tint_pixels[max_windows] = {0};
+    static uint16_t fastfetch_tint_w[max_windows] = {0};
+    static uint16_t fastfetch_tint_h[max_windows] = {0};
+    static uint16_t fastfetch_tint_color[max_windows] = {0};
 
     static int terminal_index(terminal_state *term) {
         if (term == NULL) {
@@ -41,6 +46,17 @@ extern int passwd_is_active(void);
             }
         }
         return -1;
+    }
+
+    static void tint_black_to_color(uint16_t *dst, const uint16_t *src,
+                                    size_t count, uint16_t active_color) {
+        if (dst == NULL || src == NULL) {
+            return;
+        }
+        for (size_t i = 0; i < count; i++) {
+            uint16_t pix = src[i];
+            dst[i] = (pix == 0x0000) ? active_color : pix;
+        }
     }
 
     void terminal_image_view_release(terminal_state *term) {
@@ -248,7 +264,8 @@ extern int passwd_is_active(void);
     // render all active terminal windows
     // clears screen first to ensure clean rendering
     void terminal_render_all(void) {
-        // clear screen first
+        uint16_t active_color = terminal_get_active_color();
+        // clear screen first (background stays black)
         boot_tft_fill_screen(COLOR_WHITE);
         
         // render each active terminal
@@ -271,12 +288,14 @@ extern int passwd_is_active(void);
         
         int16_t border = 2;
         int16_t padding = 3;
-        int16_t font_size = 1;
+        uint16_t active_color = terminal_get_active_color();
+        int16_t font_size = terminal_get_zoom();
+        if (font_size < 1) font_size = 1;
         int16_t char_width = 6 * font_size;
         int16_t char_height = 8 * font_size;
         
         // draw window border (highlight selected without new color)
-        uint16_t border_color = COLOR_BLACK;
+        uint16_t border_color = active_color;
         for (int i = 0; i < border; i++) {
             boot_tft_draw_rect(term->x + i, term->y + i, 
                               term->width - (i * 2), 
@@ -291,13 +310,21 @@ extern int passwd_is_active(void);
                           term->height - (border * 2), 
                           COLOR_WHITE);
         
+        int idx = terminal_index(term);
+        if (idx >= 0 && !term->fastfetch_image_active && fastfetch_tint_pixels[idx] != NULL) {
+            free(fastfetch_tint_pixels[idx]);
+            fastfetch_tint_pixels[idx] = NULL;
+            fastfetch_tint_w[idx] = 0;
+            fastfetch_tint_h[idx] = 0;
+            fastfetch_tint_color[idx] = 0;
+        }
+        
         if (term->image_view_active && term->image_view_path[0] != '\0') {
             int16_t image_x = term->x + border;
             int16_t image_y = term->y + border;
             int16_t image_w = term->width - (border * 2);
             int16_t image_h = term->height - (border * 2);
             if (image_w > 0 && image_h > 0) {
-                int idx = terminal_index(term);
                 if (idx >= 0) {
                     uint8_t path_match = (image_cache_path[idx][0] != '\0' &&
                                           strcmp(image_cache_path[idx], term->image_view_path) == 0);
@@ -356,7 +383,8 @@ extern int passwd_is_active(void);
         
         int16_t image_cols = 0;
         const int16_t image_padding_cols = 2;
-        if (term->fastfetch_image_active && term->fastfetch_image_pixels != NULL &&
+        if (!nano_is_active() &&
+            term->fastfetch_image_active && term->fastfetch_image_pixels != NULL &&
             term->fastfetch_image_w > 0 && term->fastfetch_image_h > 0 &&
             term->fastfetch_line_count > 0) {
             image_cols = (term->fastfetch_image_w + char_width - 1) / char_width;
@@ -365,7 +393,7 @@ extern int passwd_is_active(void);
         
         // set text properties
         boot_tft_set_text_size(font_size);
-        boot_tft_set_text_color(COLOR_BLACK, COLOR_WHITE);
+        boot_tft_set_text_color(active_color, COLOR_WHITE);
         
         // calculate how many characters fit in window
         int16_t base_text_x = term->x + border + padding;
@@ -381,7 +409,8 @@ extern int passwd_is_active(void);
             }
         }
 
-        if (term->fastfetch_image_active && term->fastfetch_image_pixels != NULL &&
+            if (!nano_is_active() &&
+                term->fastfetch_image_active && term->fastfetch_image_pixels != NULL &&
             term->fastfetch_image_w > 0 && term->fastfetch_image_h > 0 &&
             term->fastfetch_line_count > 0) {
             int16_t ff_start = term->fastfetch_start_row;
@@ -392,9 +421,33 @@ extern int passwd_is_active(void);
                     visible_start = start_row;
                 }
                 int16_t y_offset = (visible_start - start_row) * char_height;
+                const uint16_t *src_pixels = term->fastfetch_image_pixels;
+                uint16_t *draw_pixels = term->fastfetch_image_pixels;
+                if (idx >= 0) {
+                    size_t pixel_count = (size_t)term->fastfetch_image_w * (size_t)term->fastfetch_image_h;
+                    if (fastfetch_tint_pixels[idx] == NULL ||
+                        fastfetch_tint_w[idx] != term->fastfetch_image_w ||
+                        fastfetch_tint_h[idx] != term->fastfetch_image_h) {
+                        free(fastfetch_tint_pixels[idx]);
+                        fastfetch_tint_pixels[idx] = (uint16_t*)malloc(pixel_count * sizeof(uint16_t));
+                        fastfetch_tint_w[idx] = term->fastfetch_image_w;
+                        fastfetch_tint_h[idx] = term->fastfetch_image_h;
+                        fastfetch_tint_color[idx] = 0;
+                    }
+                    if (fastfetch_tint_pixels[idx] != NULL &&
+                        fastfetch_tint_color[idx] != active_color) {
+                        tint_black_to_color(fastfetch_tint_pixels[idx], src_pixels,
+                                            pixel_count, active_color);
+                        fastfetch_tint_color[idx] = active_color;
+                    }
+                    if (fastfetch_tint_pixels[idx] != NULL &&
+                        fastfetch_tint_color[idx] == active_color) {
+                        draw_pixels = fastfetch_tint_pixels[idx];
+                    }
+                }
                 boot_tft_draw_rgb565(term->x + border + padding,
                                      term->y + border + padding + y_offset,
-                                     term->fastfetch_image_pixels,
+                                     draw_pixels,
                                      term->fastfetch_image_w,
                                      term->fastfetch_image_h);
             }
@@ -446,27 +499,61 @@ extern int passwd_is_active(void);
                     }
                 }
                 
-                // render the line from buffer (which now has the correct content)
-                char line[terminal_cols + 1];
+                // render prompt + input, then autocomplete suffix in gray
                 int16_t chars_to_show = row_max_cols;
                 if (chars_to_show > terminal_cols) chars_to_show = terminal_cols;
-                
-                for (int16_t col = 0; col < chars_to_show; col++) {
-                    if (line_start + col < terminal_buffer_size) {
-                        char c = term->buffer[line_start + col];
-                        if (c < 32 || c >= 127) c = ' ';  // sanitize
-                        line[col] = c;
-                    } else {
-                        line[col] = ' ';
+                if (chars_to_show > 0) {
+                    char base_line[terminal_cols + 1];
+                    int16_t base_len = 0;
+                    base_line[base_len++] = '$';
+                    if (base_len < chars_to_show) {
+                        base_line[base_len++] = ' ';
                     }
-                }
-                line[chars_to_show] = '\0';
-                
-                if (row_max_cols > 0) {
-                    char display_line[row_max_cols + 1];
-                    strncpy(display_line, line, row_max_cols);
-                    display_line[row_max_cols] = '\0';
-                    boot_tft_print(display_line);
+                    for (int16_t i = 0;
+                         i < term->input_len && base_len < chars_to_show;
+                         i++) {
+                        char c = term->input_line[i];
+                        if (c < 32 || c >= 127) c = ' ';
+                        base_line[base_len++] = c;
+                    }
+                    base_line[base_len] = '\0';
+                    
+                    boot_tft_set_text_color(active_color, COLOR_WHITE);
+                    boot_tft_print(base_line);
+                    
+                    int16_t suffix_len = 0;
+                    if (!term->autocomplete_applied &&
+                        term->input_pos == term->input_len &&
+                        term->autocomplete_len > 0 &&
+                        base_len < chars_to_show) {
+                        int16_t max_suffix = chars_to_show - base_len;
+                        suffix_len = term->autocomplete_len;
+                        if (suffix_len > max_suffix) {
+                            suffix_len = max_suffix;
+                        }
+                        if (suffix_len > 0) {
+                            char suffix[terminal_cols + 1];
+                            memcpy(suffix, term->autocomplete_suffix, (size_t)suffix_len);
+                            suffix[suffix_len] = '\0';
+                            boot_tft_set_cursor(row_text_x + (base_len * char_width), y_pos);
+                            boot_tft_set_text_color(COLOR_GRAY, COLOR_WHITE);
+                            boot_tft_print(suffix);
+                            boot_tft_set_text_color(active_color, COLOR_WHITE);
+                        }
+                    }
+                    
+                    int16_t remaining = chars_to_show - base_len - suffix_len;
+                    if (remaining > 0) {
+                        char spaces[terminal_cols + 1];
+                        if (remaining > terminal_cols) {
+                            remaining = terminal_cols;
+                        }
+                        memset(spaces, ' ', (size_t)remaining);
+                        spaces[remaining] = '\0';
+                        boot_tft_set_cursor(row_text_x + ((base_len + suffix_len) * char_width), y_pos);
+                        boot_tft_set_text_color(active_color, COLOR_WHITE);
+                        boot_tft_print(spaces);
+                    }
                 }
             } else {
                 // render normal buffer line
@@ -522,7 +609,7 @@ extern int passwd_is_active(void);
             if (cursor_y >= text_y && cursor_y < text_y + (max_rows * char_height) && 
                 cursor_x >= base_text_x && cursor_x < base_text_x + (base_max_cols * char_width)) {
                 // draw a thin underline cursor without overwriting the character
-                boot_tft_fill_rect(cursor_x, cursor_y + char_height - 1, char_width, 1, COLOR_BLACK);
+                boot_tft_fill_rect(cursor_x, cursor_y + char_height - 1, char_width, 1, active_color);
             }
         }
     }

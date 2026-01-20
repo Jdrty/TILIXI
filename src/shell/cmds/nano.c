@@ -136,6 +136,20 @@ static void nano_exit_to_shell(void) {
         return;
     }
     
+    // clear any fastfetch overlay so nano doesn't leave it behind
+    term->fastfetch_image_active = 0;
+    term->fastfetch_image_path[0] = '\0';
+    term->fastfetch_start_row = 0;
+    term->fastfetch_line_count = 0;
+#ifdef ARDUINO
+    if (term->fastfetch_image_pixels != NULL) {
+        free(term->fastfetch_image_pixels);
+        term->fastfetch_image_pixels = NULL;
+    }
+    term->fastfetch_image_w = 0;
+    term->fastfetch_image_h = 0;
+#endif
+    
     terminal_clear(term);
     memset(term->input_line, 0, terminal_cols);
     term->input_pos = 0;
@@ -201,7 +215,8 @@ static void nano_render(void) {
     
     int16_t padding = 3;
     int16_t border = 2;
-    int16_t font_size = 1;
+    int16_t font_size = terminal_get_zoom();
+    if (font_size < 1) font_size = 1;
     int16_t char_height = 8 * font_size;
     int16_t visible_rows = (term->height - (border * 2) - (padding * 2)) / char_height;
     if (visible_rows < 4) {

@@ -151,13 +151,14 @@ static int find_fastfetch_logo(const char *username, char *out_path, size_t out_
     return 1;
 }
 
-static uint16_t *load_fastfetch_logo(const char *path, int *out_w, int *out_h) {
+static uint16_t *load_fastfetch_logo(const char *path, int *out_w, int *out_h, int zoom) {
     if (path == NULL || out_w == NULL || out_h == NULL) {
         return NULL;
     }
     const int src_w = 480;
     const int src_h = 320;
-    const int target_w = 15 * 6;
+    if (zoom < 1) zoom = 1;
+    const int target_w = 15 * 6 * zoom;
     const int target_h = (src_h * target_w) / src_w;
     if (target_h <= 0) {
         return NULL;
@@ -218,6 +219,40 @@ static uint16_t *load_fastfetch_logo(const char *path, int *out_w, int *out_h) {
 }
 
 #endif
+
+extern "C" void fastfetch_rescale_image(terminal_state *term) {
+#ifdef ARDUINO
+    if (term == NULL || !term->fastfetch_image_active || term->fastfetch_image_path[0] == '\0') {
+        return;
+    }
+    if (term->fastfetch_image_pixels != NULL) {
+        free(term->fastfetch_image_pixels);
+        term->fastfetch_image_pixels = NULL;
+    }
+    term->fastfetch_image_w = 0;
+    term->fastfetch_image_h = 0;
+    
+    int img_w = 0;
+    int img_h = 0;
+    int zoom = terminal_get_zoom();
+    uint16_t *pixels = load_fastfetch_logo(term->fastfetch_image_path, &img_w, &img_h, zoom);
+    if (pixels != NULL) {
+        term->fastfetch_image_pixels = pixels;
+        term->fastfetch_image_w = img_w;
+        term->fastfetch_image_h = img_h;
+        int char_height = 8 * (zoom < 1 ? 1 : zoom);
+        int image_rows = (img_h + char_height - 1) / char_height;
+        uint8_t text_lines = term->fastfetch_text_lines ? term->fastfetch_text_lines : 1;
+        term->fastfetch_line_count = (uint8_t)((image_rows > text_lines) ? image_rows : text_lines);
+    } else {
+        term->fastfetch_image_active = 0;
+        term->fastfetch_image_path[0] = '\0';
+        term->fastfetch_line_count = 0;
+    }
+#else
+    (void)term;
+#endif
+}
 
 int cmd_fastfetch(terminal_state *term, int argc, char **argv) {
     if (term == NULL) {
@@ -310,6 +345,7 @@ int cmd_fastfetch(terminal_state *term, int argc, char **argv) {
     term->fastfetch_image_path[0] = '\0';
     term->fastfetch_start_row = 0;
     term->fastfetch_line_count = 0;
+    term->fastfetch_text_lines = 0;
 #ifdef ARDUINO
     if (term->fastfetch_image_pixels != NULL) {
         free(term->fastfetch_image_pixels);
@@ -326,12 +362,14 @@ int cmd_fastfetch(terminal_state *term, int argc, char **argv) {
         term->fastfetch_image_path[sizeof(term->fastfetch_image_path) - 1] = '\0';
         int img_w = 0;
         int img_h = 0;
-        uint16_t *pixels = load_fastfetch_logo(logo_path, &img_w, &img_h);
+        int zoom = terminal_get_zoom();
+        uint16_t *pixels = load_fastfetch_logo(logo_path, &img_w, &img_h, zoom);
         if (pixels != NULL) {
             term->fastfetch_image_pixels = pixels;
             term->fastfetch_image_w = img_w;
             term->fastfetch_image_h = img_h;
-            int image_rows = (img_h + 8 - 1) / 8;
+            int char_height = 8 * (zoom < 1 ? 1 : zoom);
+            int image_rows = (img_h + char_height - 1) / char_height;
             term->fastfetch_line_count = (uint8_t)((image_rows > info_count) ? image_rows : info_count);
         } else {
             term->fastfetch_image_active = 0;
@@ -342,6 +380,7 @@ int cmd_fastfetch(terminal_state *term, int argc, char **argv) {
 
     terminal_newline(term);
     term->fastfetch_start_row = term->cursor_row;
+    term->fastfetch_text_lines = (uint8_t)info_count;
     for (int i = 0; i < info_count; i++) {
         terminal_write_line(term, info_lines[i]);
     }

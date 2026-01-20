@@ -163,6 +163,10 @@ void new_terminal(void) {
     new_term->cursor_col = 0;
     new_term->input_pos = 0;
     new_term->input_len = 0;
+    new_term->autocomplete_suffix[0] = '\0';
+    new_term->autocomplete_len = 0;
+    new_term->autocomplete_base_len = 0;
+    new_term->autocomplete_applied = 0;
     new_term->history_count = 0;
     new_term->history_pos = 0;
     new_term->pipe_input = NULL;
@@ -174,6 +178,7 @@ void new_terminal(void) {
     new_term->fastfetch_image_h = 0;
     new_term->fastfetch_start_row = 0;
     new_term->fastfetch_line_count = 0;
+    new_term->fastfetch_text_lines = 0;
     new_term->image_view_active = 0;
     new_term->image_view_path[0] = '\0';
     
@@ -182,6 +187,7 @@ void new_terminal(void) {
     set_cwd_from_passwd(new_term);
     memset(new_term->buffer, ' ', terminal_buffer_size);
     memset(new_term->input_line, 0, terminal_cols);
+    terminal_load_history(new_term);
     
 #ifdef ARDUINO
     int16_t screen_width = boot_tft_get_width();

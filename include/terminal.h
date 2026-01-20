@@ -54,6 +54,10 @@ typedef struct {
     uint8_t active;     // is terminal in use
     uint8_t input_pos;  // cursor position in input
     uint8_t input_len;  // length of input_line
+    char autocomplete_suffix[terminal_cols];
+    uint8_t autocomplete_len;
+    uint8_t autocomplete_base_len;
+    uint8_t autocomplete_applied;
     terminal_pipe_t pipes[max_pipe_commands];  // pipes for command chaining
     vfs_node_t *cwd;    // current working directory
     const char *pipe_input;  // piped input buffer (owned by pipeline)
@@ -65,6 +69,7 @@ typedef struct {
     uint16_t fastfetch_image_h;
     uint8_t fastfetch_start_row;
     uint8_t fastfetch_line_count;
+    uint8_t fastfetch_text_lines;
     uint8_t image_view_active;
     char image_view_path[256];
     
@@ -105,10 +110,16 @@ void terminal_handle_arrow_up(terminal_state *term);
 void terminal_handle_arrow_down(terminal_state *term);
 void terminal_handle_arrow_left(terminal_state *term);
 void terminal_handle_arrow_right(terminal_state *term);
+void terminal_load_history(terminal_state *term);
 void terminal_select_left(void);
 void terminal_select_right(void);
 void terminal_select_up(void);
 void terminal_select_down(void);
+uint8_t terminal_get_zoom(void);
+void terminal_zoom_in(void);
+void terminal_zoom_out(void);
+uint16_t terminal_get_active_color(void);
+void terminal_reload_config(void);
 
 // command parsing and execution
 void terminal_parse_command(const char *input, command_tokens_t *out_tokens);

@@ -40,6 +40,8 @@ void init_actions(void) {
     register_action("select_right", terminal_select_right);
     register_action("select_up", terminal_select_up);
     register_action("select_down", terminal_select_down);
+    register_action("zoom_in", terminal_zoom_in);
+    register_action("zoom_out", terminal_zoom_out);
     
     // register process-related actions
     register_process_actions();

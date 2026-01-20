@@ -21,6 +21,7 @@ extern const builtin_cmd cmd_nano_def;
 extern const builtin_cmd cmd_wc_def;
 extern const builtin_cmd cmd_passwd_def;
 extern const builtin_cmd cmd_qimgv_def;
+extern const builtin_cmd cmd_reload_def;
 #ifdef ARDUINO
 extern const builtin_cmd cmd_fastfetch_def;
 #endif
@@ -47,6 +48,7 @@ void builtins_register_all(void) {
     builtins_register_descriptor(&cmd_wc_def);
     builtins_register_descriptor(&cmd_passwd_def);
     builtins_register_descriptor(&cmd_qimgv_def);
+    builtins_register_descriptor(&cmd_reload_def);
 #ifdef ARDUINO
     builtins_register_descriptor(&cmd_fastfetch_def);
 #endif

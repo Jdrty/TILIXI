@@ -28,6 +28,8 @@ int main(void) {
     register_key(mod_ctrl, key_right, "select_right");
     register_key(mod_ctrl, key_up, "select_up");
     register_key(mod_ctrl, key_down, "select_down");
+    register_key(mod_ctrl, key_nine, "zoom_out");
+    register_key(mod_ctrl, key_zero, "zoom_in");
     sdlread();
     return 0;
 }

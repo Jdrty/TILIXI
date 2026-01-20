@@ -39,6 +39,8 @@
         register_key(mod_ctrl, key_up, "select_up");
         register_key(mod_ctrl, key_down, "select_down");
         register_key(mod_ctrl, key_dash, "close_terminal");
+        register_key(mod_ctrl, key_a, "zoom_out");
+        register_key(mod_ctrl, key_s, "zoom_in");
         // add more hotkeys as needed
     }
     
