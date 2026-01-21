@@ -278,15 +278,23 @@ void boot_start_desktop(void) {
     #include "terminal.h"
     #include "action_manager.h"
     #include "firstboot.h"
+    #include "login.h"
+    terminal_set_initial_output_suppressed(1);
     new_terminal();
     terminal_state *term = get_active_terminal();
-    firstboot_begin_if_needed(term);
+    login_begin_if_needed(term);
+    if (!login_is_active()) {
+        firstboot_begin_if_needed(term);
+    }
+    terminal_set_initial_output_suppressed(0);
 #ifdef ARDUINO
     extern void terminal_render_all(void);
     extern void terminal_render_window(terminal_state *term);
-    if (firstboot_is_active()) {
+    if (firstboot_is_active() || login_is_active()) {
         terminal_render_window(term);
     } else {
+        terminal_write_line(term, "TILIXI Terminal v1.0");
+        terminal_write_string(term, "$ ");
         terminal_render_all();
     }
 #endif

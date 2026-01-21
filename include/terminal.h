@@ -91,6 +91,7 @@ void new_terminal(void);
 void close_terminal(void);
 void init_terminal_system(void);
 terminal_state *get_active_terminal(void);
+void terminal_set_initial_output_suppressed(int suppressed);
 
 // terminal I/O
 void terminal_write_char(terminal_state *term, char c);

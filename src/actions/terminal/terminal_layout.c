@@ -135,6 +135,12 @@ static int set_cwd_from_passwd(terminal_state *term) {
     return 1;
 }
 
+static int terminal_suppress_initial_output = 0;
+
+void terminal_set_initial_output_suppressed(int suppressed) {
+    terminal_suppress_initial_output = suppressed ? 1 : 0;
+}
+
 void new_terminal(void) {
     if (window_count >= max_windows) {
         DEBUG_PRINT("[LIMIT] Max terminal count\n");
@@ -308,14 +314,18 @@ void new_terminal(void) {
     // write initial message (need to include terminal_io for this)
     extern void terminal_write_line(terminal_state *term, const char *str);
     extern void terminal_write_string(terminal_state *term, const char *str);
-    terminal_write_line(new_term, "TILIXI Terminal v1.0");
-    terminal_write_string(new_term, "$ ");
+    if (!terminal_suppress_initial_output) {
+        terminal_write_line(new_term, "TILIXI Terminal v1.0");
+        terminal_write_string(new_term, "$ ");
+    }
     
 #ifdef ARDUINO
     extern void terminal_render_all(void);
     extern void terminal_render_window(terminal_state *term);
     
-    if (window_count == 1) {
+    if (terminal_suppress_initial_output) {
+        // defer render until caller is ready (e.g., login screen)
+    } else if (window_count == 1) {
         // first terminal: full screen render
         terminal_render_all();
     } else {

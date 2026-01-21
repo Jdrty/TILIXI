@@ -1,5 +1,6 @@
 #include "terminal.h"
 #include "debug_helper.h"
+#include "login.h"
 #include <string.h>
 
 extern int nano_is_active(void);
@@ -478,7 +479,8 @@ extern int passwd_is_active(void);
             
             // check if this is the current input line (where cursor is)
             if (!nano_is_active() && !firstboot_is_active() &&
-                !passwd_is_active() && current_row == term->cursor_row) {
+                !passwd_is_active() && !login_is_active() &&
+                current_row == term->cursor_row) {
                 // render prompt + input_line for current input line
                 // this ensures the current input line shows exactly what's being typed
                 // first, clear the buffer positions for this line to remove old characters
@@ -589,7 +591,7 @@ extern int passwd_is_active(void);
         
         // if cursor is on the current input line (within visible range), calculate based on input_pos
         if (!nano_is_active() && !firstboot_is_active() &&
-            !passwd_is_active() &&
+            !passwd_is_active() && !login_is_active() &&
             term->cursor_row >= start_row && term->cursor_row < start_row + max_rows) {
             // for simplicity, if cursor_row is the last row or matches the input line, use input_pos
             cursor_col_display = 2 + term->input_pos;  // "$ " is 2 chars, then input_pos
@@ -603,7 +605,7 @@ extern int passwd_is_active(void);
             }
         }
         
-        if (term == &terminals[selected_terminal]) {
+        if (term == &terminals[selected_terminal] && !login_is_active()) {
             int16_t cursor_x = base_text_x + (cursor_col_display * char_width);
             int16_t cursor_y = text_y + ((term->cursor_row - start_row) * char_height);
             if (cursor_y >= text_y && cursor_y < text_y + (max_rows * char_height) && 

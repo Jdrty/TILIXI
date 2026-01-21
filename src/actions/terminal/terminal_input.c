@@ -7,6 +7,7 @@
 #include "debug_helper.h"
 #include "firstboot.h"
 #include "passwd.h"
+#include "login.h"
 
 extern int nano_is_active(void);
 extern void nano_handle_key_event(key_event evt);
@@ -114,6 +115,11 @@ void terminal_handle_key_event(key_event evt) {
         return;
     }
     
+    if (login_is_active()) {
+        login_handle_key_event(evt);
+        return;
+    }
+
     if (firstboot_is_active()) {
         firstboot_handle_key_event(evt);
         return;
